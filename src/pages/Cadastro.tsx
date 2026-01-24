@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CalendarDays, ArrowLeft, Check } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const benefits = [
   "Rotina semanal personalizada em minutos",
@@ -17,13 +19,53 @@ export default function Cadastro() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { signUp, user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/dashboard");
+    }
+  }, [user, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!name || !email || !password) {
+      toast.error("Preencha todos os campos");
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error("A senha deve ter pelo menos 8 caracteres");
+      return;
+    }
+
     setIsLoading(true);
-    // TODO: Implement signup
-    setTimeout(() => setIsLoading(false), 1000);
+    
+    const { error } = await signUp(email, password, name);
+    
+    if (error) {
+      if (error.message.includes("already registered")) {
+        toast.error("Este email já está cadastrado. Tente fazer login.");
+      } else {
+        toast.error(error.message);
+      }
+      setIsLoading(false);
+      return;
+    }
+    
+    toast.success("Conta criada com sucesso!");
+    navigate("/onboarding");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
