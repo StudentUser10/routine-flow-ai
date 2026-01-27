@@ -14,7 +14,246 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      alerts: {
+        Row: {
+          block_id: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          is_sent: boolean
+          message: string
+          scheduled_time: string
+          user_id: string
+        }
+        Insert: {
+          block_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          is_sent?: boolean
+          message: string
+          scheduled_time: string
+          user_id: string
+        }
+        Update: {
+          block_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          is_sent?: boolean
+          message?: string
+          scheduled_time?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "routine_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          adjustments_limit: number
+          adjustments_used: number
+          created_at: string
+          email: string
+          id: string
+          name: string
+          onboarding_completed: boolean
+          plan: Database["public"]["Enums"]["subscription_plan"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adjustments_limit?: number
+          adjustments_used?: number
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          onboarding_completed?: boolean
+          plan?: Database["public"]["Enums"]["subscription_plan"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adjustments_limit?: number
+          adjustments_used?: number
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          onboarding_completed?: boolean
+          plan?: Database["public"]["Enums"]["subscription_plan"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      questionnaire_responses: {
+        Row: {
+          created_at: string
+          energy_peak: string
+          fixed_commitments: Json
+          focus_duration: number
+          id: string
+          main_goals: Json
+          priorities: Json
+          sleep_time: string
+          updated_at: string
+          user_id: string
+          wake_time: string
+          work_hours: string
+        }
+        Insert: {
+          created_at?: string
+          energy_peak: string
+          fixed_commitments?: Json
+          focus_duration: number
+          id?: string
+          main_goals?: Json
+          priorities?: Json
+          sleep_time: string
+          updated_at?: string
+          user_id: string
+          wake_time: string
+          work_hours: string
+        }
+        Update: {
+          created_at?: string
+          energy_peak?: string
+          fixed_commitments?: Json
+          focus_duration?: number
+          id?: string
+          main_goals?: Json
+          priorities?: Json
+          sleep_time?: string
+          updated_at?: string
+          user_id?: string
+          wake_time?: string
+          work_hours?: string
+        }
+        Relationships: []
+      }
+      routine_blocks: {
+        Row: {
+          block_type: Database["public"]["Enums"]["block_type"]
+          created_at: string
+          day_of_week: number
+          description: string | null
+          end_time: string
+          id: string
+          is_fixed: boolean
+          priority: number
+          routine_id: string
+          start_time: string
+          title: string
+        }
+        Insert: {
+          block_type: Database["public"]["Enums"]["block_type"]
+          created_at?: string
+          day_of_week: number
+          description?: string | null
+          end_time: string
+          id?: string
+          is_fixed?: boolean
+          priority?: number
+          routine_id: string
+          start_time: string
+          title: string
+        }
+        Update: {
+          block_type?: Database["public"]["Enums"]["block_type"]
+          created_at?: string
+          day_of_week?: number
+          description?: string | null
+          end_time?: string
+          id?: string
+          is_fixed?: boolean
+          priority?: number
+          routine_id?: string
+          start_time?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_blocks_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_feedback: {
+        Row: {
+          block_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          user_id: string
+          worked: boolean
+        }
+        Insert: {
+          block_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          user_id: string
+          worked: boolean
+        }
+        Update: {
+          block_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          user_id?: string
+          worked?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_feedback_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "routine_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routines: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+          version: number
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+          version?: number
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+          version?: number
+          week_start?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +262,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      block_type: "focus" | "rest" | "personal" | "fixed"
+      subscription_plan: "free" | "pro" | "annual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +390,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      block_type: ["focus", "rest", "personal", "fixed"],
+      subscription_plan: ["free", "pro", "annual"],
+    },
   },
 } as const
