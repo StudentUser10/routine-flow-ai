@@ -61,19 +61,11 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // Custom semantic colors
-        focus: {
-          DEFAULT: "hsl(var(--focus-block))",
-        },
-        rest: {
-          DEFAULT: "hsl(var(--rest-block))",
-        },
-        personal: {
-          DEFAULT: "hsl(var(--personal-block))",
-        },
-        fixed: {
-          DEFAULT: "hsl(var(--fixed-block))",
-        },
+        // Custom semantic colors for routine blocks
+        "focus-block": "hsl(var(--focus-block))",
+        "rest-block": "hsl(var(--rest-block))",
+        "personal-block": "hsl(var(--personal-block))",
+        "fixed-block": "hsl(var(--fixed-block))",
       },
       borderRadius: {
         lg: "var(--radius)",
