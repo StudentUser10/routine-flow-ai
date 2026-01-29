@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, LogOut, Sparkles, Settings, RotateCcw, Loader2 } from "lucide-react";
+import { CalendarDays, LogOut, Sparkles, RotateCcw, Loader2, Crown, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { PlanBadge } from "@/components/PlanBadge";
+import { AdjustmentsIndicator } from "@/components/AdjustmentsIndicator";
 
 interface Profile {
   id: string;
@@ -18,7 +22,9 @@ interface Profile {
 
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
+  const { plan, checkSubscription } = useSubscription();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
@@ -34,6 +40,17 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Handle payment success
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    if (payment === 'success') {
+      toast.success('Pagamento confirmado com sucesso! Seu plano foi atualizado.');
+      checkSubscription();
+      // Clean URL
+      navigate('/dashboard', { replace: true });
+    }
+  }, [searchParams, checkSubscription, navigate]);
+
   const fetchProfile = async () => {
     if (!user) return;
     
@@ -46,13 +63,11 @@ export default function Dashboard() {
 
       if (error) {
         console.error("Profile fetch error:", error);
-        // Profile might not exist yet for new users, will be created by trigger
         return;
       }
 
       setProfile(data);
 
-      // Redirect to onboarding if not completed
       if (!data.onboarding_completed) {
         navigate("/onboarding");
       }
@@ -95,6 +110,8 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-4">
+            <PlanBadge />
+            <ThemeToggle />
             <span className="text-sm text-muted-foreground hidden sm:block">
               Olá, {userName}
             </span>
@@ -126,9 +143,9 @@ export default function Dashboard() {
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
-                  variant="hero" 
-                  size="xl" 
+                  size="lg" 
                   onClick={() => navigate("/rotina")}
+                  className="gap-2"
                 >
                   Ver minha rotina
                   <CalendarDays className="w-5 h-5" />
@@ -136,24 +153,45 @@ export default function Dashboard() {
 
                 <Button 
                   variant="outline" 
-                  size="xl" 
+                  size="lg" 
                   onClick={() => navigate("/onboarding")}
+                  className="gap-2"
                 >
                   <RotateCcw className="w-5 h-5" />
                   Refazer onboarding
                 </Button>
               </div>
 
-              {/* Plan info */}
-              <div className="p-4 bg-card border border-border rounded-lg mt-8">
-                <p className="text-sm text-muted-foreground">
-                  Plano: <span className="font-medium text-foreground capitalize">{profile.plan}</span>
-                  {profile.plan === "free" && (
-                    <span className="ml-2">
-                      • Ajustes: {profile.adjustments_used}/{profile.adjustments_limit}
+              {/* Plan info card */}
+              <div className="p-6 bg-card border border-border rounded-xl mt-8 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {plan === 'free' ? (
+                      <Sparkles className="w-5 h-5 text-muted-foreground" />
+                    ) : (
+                      <Crown className="w-5 h-5 text-primary" />
+                    )}
+                    <span className="font-medium">
+                      Plano {plan === 'free' ? 'Free' : plan === 'pro' ? 'Pro' : 'Pro Anual'}
                     </span>
-                  )}
-                </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => navigate('/planos')}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    {plan === 'free' ? 'Fazer upgrade' : 'Gerenciar'}
+                  </Button>
+                </div>
+
+                <AdjustmentsIndicator />
+
+                {plan === 'free' && (
+                  <Button 
+                    className="w-full gap-2" 
+                    onClick={() => navigate('/planos')}
+                  >
+                    <Crown className="w-4 h-4" />
+                    Fazer upgrade para Pro
+                  </Button>
+                )}
               </div>
             </>
           ) : (
@@ -173,10 +211,9 @@ export default function Dashboard() {
               </p>
 
               <Button 
-                variant="hero" 
-                size="xl" 
+                size="lg" 
                 onClick={() => navigate("/onboarding")}
-                className="mx-auto"
+                className="mx-auto gap-2"
               >
                 Criar minha rotina automaticamente
                 <Sparkles className="w-5 h-5" />
