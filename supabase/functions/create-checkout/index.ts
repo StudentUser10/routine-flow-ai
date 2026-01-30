@@ -7,10 +7,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Valid Stripe price IDs - only these are allowed
+const VALID_PRICE_IDS = [
+  "price_1SuxadEvgf99HIdqAdmSo2NC", // Pro Mensal
+  "price_1SuxazEvgf99HIdqFJu3UNqf", // Pro Anual
+] as const;
+
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
+
+// Generic error messages for clients (no internal details exposed)
+const CLIENT_ERRORS = {
+  INVALID_REQUEST: "Requisição inválida",
+  UNAUTHORIZED: "Não autorizado",
+  INTERNAL_ERROR: "Erro ao processar requisição",
+} as const;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,16 +38,63 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const { priceId } = await req.json();
-    if (!priceId) throw new Error("priceId is required");
-    logStep("Price ID received", { priceId });
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      logStep("ERROR: Invalid JSON body");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INVALID_REQUEST }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
 
-    const authHeader = req.headers.get("Authorization")!;
+    // Validate priceId exists and is a string
+    if (!body || typeof body !== "object" || !("priceId" in body)) {
+      logStep("ERROR: Missing priceId");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INVALID_REQUEST }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
+    const { priceId } = body as { priceId: unknown };
+    
+    // Validate priceId is a valid Stripe price ID
+    if (typeof priceId !== "string" || !VALID_PRICE_IDS.includes(priceId as typeof VALID_PRICE_IDS[number])) {
+      logStep("ERROR: Invalid priceId", { priceId });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INVALID_REQUEST }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
+    logStep("Price ID validated", { priceId });
+
+    // Validate authorization
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      logStep("ERROR: Missing authorization header");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
+    const { data, error: authError } = await supabaseClient.auth.getUser(token);
+    
+    if (authError || !data.user?.email) {
+      logStep("ERROR: Auth failed", { error: authError?.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const user = data.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    logStep("User authenticated", { userId: user.id });
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", { 
       apiVersion: "2025-08-27.basil" 
@@ -65,16 +125,17 @@ serve(async (req) => {
       cancel_url: `${origin}/planos?payment=cancelled`,
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Checkout session created", { sessionId: session.id });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
+    // Log detailed error internally, return generic message to client
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

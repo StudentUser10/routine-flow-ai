@@ -6,17 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface QuestionnaireData {
-  wake_time: string;
-  sleep_time: string;
-  work_hours: string;
-  fixed_commitments: { day: number; start: string; end: string; title: string }[];
-  main_goals: string[];
-  energy_peak: string;
-  focus_duration: number;
-  priorities: string[];
-}
-
 interface RoutineBlock {
   day_of_week: number;
   block_type: "focus" | "rest" | "personal" | "fixed";
@@ -28,6 +17,15 @@ interface RoutineBlock {
   priority: number;
 }
 
+// Generic error messages for clients (no internal details exposed)
+const CLIENT_ERRORS = {
+  UNAUTHORIZED: "Não autorizado",
+  ONBOARDING_REQUIRED: "Complete o onboarding primeiro",
+  RATE_LIMITED: "Limite de requisições excedido. Tente novamente em alguns minutos.",
+  CREDITS_EXHAUSTED: "Créditos de IA esgotados. Entre em contato com o suporte.",
+  INTERNAL_ERROR: "Erro ao gerar rotina",
+} as const;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -36,7 +34,8 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
+      console.log("[GENERATE-ROUTINE] ERROR: Missing authorization header");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -51,12 +50,14 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error("User auth error:", userError);
-      return new Response(JSON.stringify({ error: "Usuário não encontrado" }), {
+      console.error("[GENERATE-ROUTINE] User auth error:", userError?.message);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log("[GENERATE-ROUTINE] User authenticated:", user.id);
 
     // Get questionnaire data
     const { data: questionnaire, error: questError } = await supabase
@@ -66,8 +67,8 @@ serve(async (req) => {
       .single();
 
     if (questError || !questionnaire) {
-      console.error("Questionnaire error:", questError);
-      return new Response(JSON.stringify({ error: "Complete o onboarding primeiro" }), {
+      console.error("[GENERATE-ROUTINE] Questionnaire error:", questError?.message);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.ONBOARDING_REQUIRED }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -75,7 +76,11 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY não configurada");
+      console.error("[GENERATE-ROUTINE] LOVABLE_API_KEY not configured");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const systemPrompt = `Você é um especialista em produtividade e gestão de tempo. Seu trabalho é criar rotinas semanais personalizadas e realistas baseadas na vida real do usuário.
@@ -126,7 +131,7 @@ DADOS DO USUÁRIO:
 
 Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras.`;
 
-    console.log("Calling Lovable AI to generate routine...");
+    console.log("[GENERATE-ROUTINE] Calling Lovable AI...");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -146,51 +151,63 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("AI Gateway error:", aiResponse.status, errorText);
+      console.error("[GENERATE-ROUTINE] AI Gateway error:", aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.RATE_LIMITED }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Entre em contato com o suporte." }), {
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.CREDITS_EXHAUSTED }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       
-      throw new Error(`AI Gateway error: ${aiResponse.status}`);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const aiData = await aiResponse.json();
     const content = aiData.choices?.[0]?.message?.content;
 
     if (!content) {
-      console.error("No content from AI:", aiData);
-      throw new Error("IA não retornou conteúdo");
+      console.error("[GENERATE-ROUTINE] No content from AI");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log("AI Response received, parsing...");
+    console.log("[GENERATE-ROUTINE] AI Response received, parsing...");
 
     // Extract JSON from response
     let routineData: { blocks: RoutineBlock[] };
     try {
-      // Try to find JSON in the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         routineData = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error("JSON não encontrado na resposta");
+        throw new Error("JSON not found");
       }
     } catch (parseError) {
-      console.error("Parse error:", parseError, "Content:", content);
-      throw new Error("Falha ao processar resposta da IA");
+      console.error("[GENERATE-ROUTINE] Parse error:", parseError);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!routineData.blocks || !Array.isArray(routineData.blocks) || routineData.blocks.length === 0) {
-      throw new Error("IA retornou rotina vazia");
+      console.error("[GENERATE-ROUTINE] Empty routine returned");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Validate time format (HH:MM) and logical order
@@ -202,20 +219,29 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
 
     for (const block of routineData.blocks) {
       if (!timeRegex.test(block.start_time) || !timeRegex.test(block.end_time)) {
-        console.error("Invalid time format in block:", block);
-        throw new Error(`Formato de hora inválido no bloco "${block.title}"`);
+        console.error("[GENERATE-ROUTINE] Invalid time format in block:", block.title);
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       if (parseTime(block.end_time) <= parseTime(block.start_time)) {
-        console.error("End time before start time in block:", block);
-        throw new Error(`Horário final deve ser após inicial no bloco "${block.title}"`);
+        console.error("[GENERATE-ROUTINE] End time before start time:", block.title);
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       if (block.day_of_week < 0 || block.day_of_week > 6) {
-        console.error("Invalid day_of_week in block:", block);
-        throw new Error(`Dia da semana inválido no bloco "${block.title}"`);
+        console.error("[GENERATE-ROUTINE] Invalid day_of_week:", block.day_of_week);
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
-    console.log("All blocks validated successfully");
+    console.log("[GENERATE-ROUTINE] All blocks validated successfully");
 
     // Calculate week start (current week's Sunday)
     const now = new Date();
@@ -245,8 +271,11 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       .single();
 
     if (routineError) {
-      console.error("Routine creation error:", routineError);
-      throw new Error("Falha ao criar rotina");
+      console.error("[GENERATE-ROUTINE] Routine creation error:", routineError.message);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Delete existing blocks for this routine
@@ -273,8 +302,11 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       .insert(blocksToInsert);
 
     if (blocksError) {
-      console.error("Blocks insertion error:", blocksError);
-      throw new Error("Falha ao salvar blocos da rotina");
+      console.error("[GENERATE-ROUTINE] Blocks insertion error:", blocksError.message);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Update profile to mark onboarding as completed
@@ -283,7 +315,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       .update({ onboarding_completed: true })
       .eq("user_id", user.id);
 
-    console.log("Routine generated successfully with", blocksToInsert.length, "blocks");
+    console.log("[GENERATE-ROUTINE] Routine generated successfully with", blocksToInsert.length, "blocks");
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -294,10 +326,9 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
     });
 
   } catch (error) {
-    console.error("Generate routine error:", error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Erro ao gerar rotina" 
-    }), {
+    // Log detailed error internally, return generic message to client
+    console.error("[GENERATE-ROUTINE] Unexpected error:", error instanceof Error ? error.message : error);
+    return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
