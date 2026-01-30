@@ -11,6 +11,17 @@ const logStep = (step: string, details?: any) => {
   console.log(`[AUTO-ADJUST] ${step}${detailsStr}`);
 };
 
+// Generic error messages for clients (no internal details exposed)
+const CLIENT_ERRORS = {
+  UNAUTHORIZED: "Não autorizado",
+  LIMIT_REACHED: "Limite de ajustes atingido. Faça upgrade para Pro.",
+  NO_ROUTINE: "Nenhuma rotina ativa encontrada",
+  INTERNAL_ERROR: "Erro ao ajustar rotina",
+} as const;
+
+// Time format validation regex (HH:MM)
+const TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -26,13 +37,26 @@ serve(async (req) => {
     logStep("Function started");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      logStep("ERROR: Missing authorization header");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    
+    if (userError || !userData.user) {
+      logStep("ERROR: Auth failed", { error: userError?.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const user = userData.user;
-    if (!user) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
     // Get user profile to check plan and adjustments limit
@@ -43,14 +67,19 @@ serve(async (req) => {
       .single();
 
     if (profileError || !profile) {
-      throw new Error("Profile not found");
+      logStep("ERROR: Profile not found", { error: profileError?.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
     }
 
     // Check if user can make adjustments
     if (profile.plan === "free" && profile.adjustments_used >= profile.adjustments_limit) {
+      logStep("Adjustment limit reached");
       return new Response(JSON.stringify({ 
         success: false, 
-        error: "Limite de ajustes atingido. Faça upgrade para Pro.",
+        error: CLIENT_ERRORS.LIMIT_REACHED,
         adjustments_remaining: 0
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,7 +108,11 @@ serve(async (req) => {
       .gte("created_at", sevenDaysAgo.toISOString());
 
     if (feedbackError) {
-      throw new Error(`Error fetching feedback: ${feedbackError.message}`);
+      logStep("ERROR: Failed to fetch feedback", { error: feedbackError.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
 
     if (!negativeFeedback || negativeFeedback.length === 0) {
@@ -105,16 +138,26 @@ serve(async (req) => {
       .single();
 
     if (routineError || !routine) {
-      throw new Error("No active routine found");
+      logStep("ERROR: No active routine", { error: routineError?.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.NO_ROUTINE }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
 
     // Analyze patterns and make adjustments
     const adjustments: string[] = [];
-    const blockUpdates: any[] = [];
+    const blockUpdates: { id: string; start_time: string; end_time: string }[] = [];
 
     for (const feedback of negativeFeedback) {
       const block = feedback.routine_blocks;
       if (!block || block.is_fixed) continue; // Never adjust fixed blocks
+
+      // Validate time format before processing
+      if (!TIME_REGEX.test(block.start_time) || !TIME_REGEX.test(block.end_time)) {
+        logStep("Skipping block with invalid time format", { blockId: block.id });
+        continue;
+      }
 
       // Strategy: If a block didn't work, try moving it 30 minutes earlier or later
       const [hours, minutes] = block.start_time.split(":").map(Number);
@@ -130,13 +173,15 @@ serve(async (req) => {
         const newEndMinutes = newHours * 60 + newMinutes + durationMinutes;
         const newEndTime = `${String(Math.floor(newEndMinutes / 60)).padStart(2, '0')}:${String(newEndMinutes % 60).padStart(2, '0')}`;
 
-        blockUpdates.push({
-          id: block.id,
-          start_time: newStartTime,
-          end_time: newEndTime
-        });
-
-        adjustments.push(`Bloco "${block.title}" movido de ${block.start_time} para ${newStartTime}`);
+        // Validate new times
+        if (TIME_REGEX.test(newStartTime) && TIME_REGEX.test(newEndTime)) {
+          blockUpdates.push({
+            id: block.id,
+            start_time: newStartTime,
+            end_time: newEndTime
+          });
+          adjustments.push(`Bloco "${block.title}" movido de ${block.start_time} para ${newStartTime}`);
+        }
       }
     }
 
@@ -173,9 +218,10 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
+    // Log detailed error internally, return generic message to client
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

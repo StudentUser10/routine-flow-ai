@@ -18,6 +18,12 @@ const PRODUCT_TO_PLAN: Record<string, "pro" | "annual"> = {
   "prod_Tsj3ztT0JOraZ3": "annual", // Pro Anual
 };
 
+// Generic error messages for clients (no internal details exposed)
+const CLIENT_ERRORS = {
+  UNAUTHORIZED: "Não autorizado",
+  INTERNAL_ERROR: "Erro ao verificar assinatura",
+} as const;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,19 +39,38 @@ serve(async (req) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!stripeKey) {
+      logStep("ERROR: STRIPE_SECRET_KEY not configured");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
     logStep("Stripe key verified");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      logStep("ERROR: Missing authorization header");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
     logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    
+    if (userError || !userData.user?.email) {
+      logStep("ERROR: Auth failed", { error: userError?.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    logStep("User authenticated", { userId: user.id });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
@@ -87,11 +112,7 @@ serve(async (req) => {
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       const productId = subscription.items.data[0].price.product as string;
       plan = PRODUCT_TO_PLAN[productId] || "pro";
-      logStep("Active subscription found", { 
-        subscriptionId: subscription.id, 
-        endDate: subscriptionEnd,
-        plan 
-      });
+      logStep("Active subscription found", { plan });
     } else {
       logStep("No active subscription found");
     }
@@ -118,9 +139,10 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
+    // Log detailed error internally, return generic message to client
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
