@@ -94,6 +94,7 @@ REGRAS OBRIGATÓRIAS:
 6. Priorize as metas e prioridades do usuário
 7. Considere o pico de energia para alocar tarefas importantes
 8. Deixe tempo livre para imprevistos
+9. Se o usuário NÃO tem trabalho fixo, crie uma rotina FLEXÍVEL baseada em metas e energia
 
 TIPOS DE BLOCOS:
 - focus: Trabalho profundo, estudo, projetos importantes
@@ -117,12 +118,32 @@ Retorne APENAS um JSON válido com a estrutura:
   ]
 }`;
 
+    // Handle users without fixed work
+    const hasFixedWork = questionnaire.has_fixed_work ?? true;
+    const workDays = questionnaire.work_days || [];
+    
+    let workInfo = "";
+    if (hasFixedWork && questionnaire.work_hours) {
+      if (workDays.length > 0) {
+        const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+        const daysStr = workDays.map((wd: any) => dayNames[wd.day]).join(", ");
+        workInfo = `- Trabalho fixo: Sim
+- Dias de trabalho: ${daysStr}
+- Horário de trabalho: ${questionnaire.work_hours}`;
+      } else {
+        workInfo = `- Trabalho fixo: Sim
+- Horário de trabalho: ${questionnaire.work_hours}`;
+      }
+    } else {
+      workInfo = `- Trabalho fixo: NÃO - Criar rotina flexível baseada em metas e energia do usuário`;
+    }
+
     const userPrompt = `Crie uma rotina semanal completa para este usuário:
 
 DADOS DO USUÁRIO:
 - Acorda às: ${questionnaire.wake_time}
 - Dorme às: ${questionnaire.sleep_time}
-- Horário de trabalho: ${questionnaire.work_hours}
+${workInfo}
 - Pico de energia: ${questionnaire.energy_peak}
 - Duração máxima de foco: ${questionnaire.focus_duration} minutos
 - Metas principais: ${JSON.stringify(questionnaire.main_goals)}

@@ -55,6 +55,110 @@ export type Database = {
           },
         ]
       }
+      block_status: {
+        Row: {
+          block_id: string
+          completed_at: string | null
+          created_at: string
+          date: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          block_id: string
+          completed_at?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          block_id?: string
+          completed_at?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "block_status_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "routine_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_progress: {
+        Row: {
+          blocks_completed: number
+          blocks_skipped: number
+          blocks_total: number
+          completion_percentage: number
+          created_at: string
+          date: string
+          id: string
+          streak_maintained: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocks_completed?: number
+          blocks_skipped?: number
+          blocks_total?: number
+          completion_percentage?: number
+          created_at?: string
+          date?: string
+          id?: string
+          streak_maintained?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocks_completed?: number
+          blocks_skipped?: number
+          blocks_total?: number
+          completion_percentage?: number
+          created_at?: string
+          date?: string
+          id?: string
+          streak_maintained?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      onboarding_versions: {
+        Row: {
+          created_at: string
+          id: string
+          responses: Json
+          source: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          responses?: Json
+          source: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          responses?: Json
+          source?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           adjustments_limit: number
@@ -100,6 +204,7 @@ export type Database = {
           energy_peak: string
           fixed_commitments: Json
           focus_duration: number
+          has_fixed_work: boolean
           id: string
           main_goals: Json
           priorities: Json
@@ -107,6 +212,7 @@ export type Database = {
           updated_at: string
           user_id: string
           wake_time: string
+          work_days: Json
           work_hours: string
         }
         Insert: {
@@ -114,6 +220,7 @@ export type Database = {
           energy_peak: string
           fixed_commitments?: Json
           focus_duration: number
+          has_fixed_work?: boolean
           id?: string
           main_goals?: Json
           priorities?: Json
@@ -121,6 +228,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           wake_time: string
+          work_days?: Json
           work_hours: string
         }
         Update: {
@@ -128,6 +236,7 @@ export type Database = {
           energy_peak?: string
           fixed_commitments?: Json
           focus_duration?: number
+          has_fixed_work?: boolean
           id?: string
           main_goals?: Json
           priorities?: Json
@@ -135,9 +244,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           wake_time?: string
+          work_days?: Json
           work_hours?: string
         }
         Relationships: []
+      }
+      routine_adjustments: {
+        Row: {
+          changes: Json
+          created_at: string
+          description: string
+          id: string
+          routine_id: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          changes?: Json
+          created_at?: string
+          description: string
+          id?: string
+          routine_id: string
+          source: string
+          user_id: string
+        }
+        Update: {
+          changes?: Json
+          created_at?: string
+          description?: string
+          id?: string
+          routine_id?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_adjustments_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       routine_blocks: {
         Row: {
@@ -251,6 +399,45 @@ export type Database = {
           user_id?: string
           version?: number
           week_start?: string
+        }
+        Relationships: []
+      }
+      user_gamification: {
+        Row: {
+          created_at: string
+          current_level: string
+          current_streak: number
+          id: string
+          last_active_date: string | null
+          longest_streak: number
+          streak_minimum_percentage: number
+          total_points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_level?: string
+          current_streak?: number
+          id?: string
+          last_active_date?: string | null
+          longest_streak?: number
+          streak_minimum_percentage?: number
+          total_points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_level?: string
+          current_streak?: number
+          id?: string
+          last_active_date?: string | null
+          longest_streak?: number
+          streak_minimum_percentage?: number
+          total_points?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
