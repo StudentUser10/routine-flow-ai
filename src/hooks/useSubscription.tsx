@@ -33,7 +33,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [adjustmentsUsed, setAdjustmentsUsed] = useState(0);
-  const [adjustmentsLimit, setAdjustmentsLimit] = useState(3);
+  const [adjustmentsLimit, setAdjustmentsLimit] = useState(1);
 
   const checkSubscription = useCallback(async () => {
     if (!session?.access_token) {
