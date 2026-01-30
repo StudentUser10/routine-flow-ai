@@ -193,6 +193,30 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       throw new Error("IA retornou rotina vazia");
     }
 
+    // Validate time format (HH:MM) and logical order
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const parseTime = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    for (const block of routineData.blocks) {
+      if (!timeRegex.test(block.start_time) || !timeRegex.test(block.end_time)) {
+        console.error("Invalid time format in block:", block);
+        throw new Error(`Formato de hora inválido no bloco "${block.title}"`);
+      }
+      if (parseTime(block.end_time) <= parseTime(block.start_time)) {
+        console.error("End time before start time in block:", block);
+        throw new Error(`Horário final deve ser após inicial no bloco "${block.title}"`);
+      }
+      if (block.day_of_week < 0 || block.day_of_week > 6) {
+        console.error("Invalid day_of_week in block:", block);
+        throw new Error(`Dia da semana inválido no bloco "${block.title}"`);
+      }
+    }
+
+    console.log("All blocks validated successfully");
+
     // Calculate week start (current week's Sunday)
     const now = new Date();
     const dayOfWeek = now.getDay();
@@ -231,7 +255,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       .delete()
       .eq("routine_id", routine.id);
 
-    // Insert new blocks
+    // Insert new blocks (already validated)
     const blocksToInsert = routineData.blocks.map((block) => ({
       routine_id: routine.id,
       day_of_week: block.day_of_week,
