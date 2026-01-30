@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,17 +8,25 @@ import { CalendarDays, ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-r
 import { toast } from "sonner";
 import { QuestionWakeTime } from "@/components/onboarding/QuestionWakeTime";
 import { QuestionSleepTime } from "@/components/onboarding/QuestionSleepTime";
-import { QuestionWorkHours } from "@/components/onboarding/QuestionWorkHours";
+import { QuestionHasFixedWork } from "@/components/onboarding/QuestionHasFixedWork";
 import { QuestionFixedCommitments } from "@/components/onboarding/QuestionFixedCommitments";
 import { QuestionGoals } from "@/components/onboarding/QuestionGoals";
 import { QuestionEnergyPeak } from "@/components/onboarding/QuestionEnergyPeak";
 import { QuestionFocusDuration } from "@/components/onboarding/QuestionFocusDuration";
 import { QuestionPriorities } from "@/components/onboarding/QuestionPriorities";
 
+interface WorkDay {
+  day: number;
+  start: string;
+  end: string;
+}
+
 export interface OnboardingData {
   wakeTime: string;
   sleepTime: string;
+  hasFixedWork: boolean;
   workHours: string;
+  workDays: WorkDay[];
   fixedCommitments: { day: number; start: string; end: string; title: string }[];
   mainGoals: string[];
   energyPeak: string;
@@ -38,7 +46,9 @@ export default function Onboarding() {
   const [data, setData] = useState<OnboardingData>({
     wakeTime: "07:00",
     sleepTime: "23:00",
+    hasFixedWork: true,
     workHours: "09:00-18:00",
+    workDays: [],
     fixedCommitments: [],
     mainGoals: [],
     energyPeak: "morning",
@@ -60,7 +70,7 @@ export default function Onboarding() {
     switch (currentStep) {
       case 1: return !!data.wakeTime;
       case 2: return !!data.sleepTime;
-      case 3: return !!data.workHours;
+      case 3: return !data.hasFixedWork || (data.hasFixedWork && data.workDays.length > 0);
       case 4: return true; // Fixed commitments are optional
       case 5: return data.mainGoals.length > 0;
       case 6: return !!data.energyPeak;
@@ -89,19 +99,24 @@ export default function Onboarding() {
 
     try {
       // Save questionnaire responses
+      // Note: Using type assertion for new columns not yet in generated types
+      const questionnaireData = {
+        user_id: user.id,
+        wake_time: data.wakeTime,
+        sleep_time: data.sleepTime,
+        has_fixed_work: data.hasFixedWork,
+        work_hours: data.hasFixedWork ? data.workHours : "",
+        work_days: data.workDays,
+        fixed_commitments: data.fixedCommitments,
+        main_goals: data.mainGoals,
+        energy_peak: data.energyPeak,
+        focus_duration: data.focusDuration,
+        priorities: data.priorities,
+      };
+
       const { error: questError } = await supabase
         .from("questionnaire_responses")
-        .upsert({
-          user_id: user.id,
-          wake_time: data.wakeTime,
-          sleep_time: data.sleepTime,
-          work_hours: data.workHours,
-          fixed_commitments: data.fixedCommitments,
-          main_goals: data.mainGoals,
-          energy_peak: data.energyPeak,
-          focus_duration: data.focusDuration,
-          priorities: data.priorities,
-        }, { onConflict: "user_id" });
+        .upsert(questionnaireData as any, { onConflict: "user_id" });
 
       if (questError) {
         console.error("Questionnaire save error:", questError);
@@ -204,7 +219,14 @@ export default function Onboarding() {
                 <QuestionSleepTime value={data.sleepTime} onChange={(v) => updateData("sleepTime", v)} />
               )}
               {currentStep === 3 && (
-                <QuestionWorkHours value={data.workHours} onChange={(v) => updateData("workHours", v)} />
+                <QuestionHasFixedWork
+                  hasFixedWork={data.hasFixedWork}
+                  workHours={data.workHours}
+                  workDays={data.workDays}
+                  onHasFixedWorkChange={(v) => updateData("hasFixedWork", v)}
+                  onWorkHoursChange={(v) => updateData("workHours", v)}
+                  onWorkDaysChange={(v) => updateData("workDays", v)}
+                />
               )}
               {currentStep === 4 && (
                 <QuestionFixedCommitments

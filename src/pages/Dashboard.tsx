@@ -158,7 +158,7 @@ export default function Dashboard() {
                   className="gap-2"
                 >
                   <RotateCcw className="w-5 h-5" />
-                  Refazer onboarding
+                  Ajustar minha rotina
                 </Button>
               </div>
 
