@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { CalendarDays, ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { format, startOfWeek } from "date-fns";
 import { QuestionWakeTime } from "@/components/onboarding/QuestionWakeTime";
 import { QuestionSleepTime } from "@/components/onboarding/QuestionSleepTime";
 import { QuestionHasFixedWork } from "@/components/onboarding/QuestionHasFixedWork";
@@ -15,6 +16,13 @@ import { QuestionGoals } from "@/components/onboarding/QuestionGoals";
 import { QuestionEnergyPeak } from "@/components/onboarding/QuestionEnergyPeak";
 import { QuestionFocusDuration } from "@/components/onboarding/QuestionFocusDuration";
 import { QuestionPriorities } from "@/components/onboarding/QuestionPriorities";
+
+// Helper function to get current week start (Sunday)
+const getCurrentWeekStart = (): string => {
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 0 });
+  return format(weekStart, "yyyy-MM-dd");
+};
 
 interface WorkDay {
   day: number;
@@ -163,6 +171,9 @@ export default function Onboarding() {
         setIsGenerating(true);
 
         // CAMADA ÚNICA DE AJUSTE - REGRA ABSOLUTA
+        // REGRA: Sempre enviar week_start explícito
+        const weekStartStr = getCurrentWeekStart();
+        
         const result = await executeRoutineAdjustment(
           're_onboarding',
           async () => {
@@ -176,6 +187,9 @@ export default function Onboarding() {
                   "Content-Type": "application/json",
                   Authorization: `Bearer ${session?.session?.access_token}`,
                 },
+                body: JSON.stringify({
+                  week_start: weekStartStr,
+                }),
               }
             );
 
@@ -199,6 +213,9 @@ export default function Onboarding() {
         }
       } else {
         // First onboarding - no adjustment needed
+        // REGRA: Sempre enviar week_start explícito
+        const weekStartStr = getCurrentWeekStart();
+        
         toast.success("Respostas salvas! Gerando sua rotina...");
         setIsGenerating(true);
 
@@ -212,6 +229,9 @@ export default function Onboarding() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${session?.session?.access_token}`,
             },
+            body: JSON.stringify({
+              week_start: weekStartStr,
+            }),
           }
         );
 
