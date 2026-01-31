@@ -204,10 +204,14 @@ export default function Rotina() {
 
   const handlePreviousWeek = () => {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
+    // REGRA: Mudou de semana → começa do início (domingo = 0)
+    setSelectedDay(0);
   };
 
   const handleNextWeek = () => {
     setCurrentWeekStart((prev) => addWeeks(prev, 1));
+    // REGRA: Mudou de semana → começa do início (domingo = 0)
+    setSelectedDay(0);
   };
 
   if (authLoading || loading) {
