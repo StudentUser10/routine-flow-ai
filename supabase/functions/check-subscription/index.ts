@@ -59,21 +59,34 @@ serve(async (req) => {
     logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     
-    if (userError || !userData.user?.email) {
-      logStep("ERROR: Auth failed", { error: userError?.message });
+    // Use getClaims for JWT validation (doesn't require active session)
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      logStep("ERROR: Auth failed", { error: claimsError?.message });
       return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 401,
       });
     }
 
-    const user = userData.user;
-    logStep("User authenticated", { userId: user.id });
+    const claims = claimsData.claims;
+    const userId = claims.sub as string;
+    const userEmail = claims.email as string;
+    
+    if (!userEmail) {
+      logStep("ERROR: No email in claims");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    
+    logStep("User authenticated", { userId });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
     
     if (customers.data.length === 0) {
       logStep("No customer found, returning free plan");
@@ -82,7 +95,7 @@ serve(async (req) => {
       await supabaseClient
         .from("profiles")
         .update({ plan: "free" })
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
 
       return new Response(JSON.stringify({ 
         subscribed: false, 
@@ -126,7 +139,7 @@ serve(async (req) => {
     await supabaseClient
       .from("profiles")
       .update(updateData)
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     logStep("Profile updated with plan", { plan });
 
