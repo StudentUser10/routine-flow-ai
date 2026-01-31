@@ -74,17 +74,19 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    
+    // Use getClaims for JWT validation (doesn't require active session)
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
 
-    if (userError || !userData.user) {
-      logStep("ERROR: Auth failed", { error: userError?.message });
+    if (claimsError || !claimsData?.claims) {
+      logStep("ERROR: Auth failed", { error: claimsError?.message });
       return new Response(
         JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED, canAdjust: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
-    const userId = userData.user.id;
+    const userId = claimsData.claims.sub as string;
     logStep("User authenticated", { userId });
 
     // Parse request body
