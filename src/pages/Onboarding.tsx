@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdjustments } from "@/hooks/useAdjustments";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -38,10 +39,12 @@ const TOTAL_QUESTIONS = 8;
 
 export default function Onboarding() {
   const { user, loading: authLoading } = useAuth();
+  const { canAdjust, validateAndExecute, checkAdjustments } = useAdjustments();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isReOnboarding, setIsReOnboarding] = useState(false);
   
   const [data, setData] = useState<OnboardingData>({
     wakeTime: "07:00",
@@ -61,6 +64,27 @@ export default function Onboarding() {
       navigate("/login");
     }
   }, [user, authLoading, navigate]);
+
+  // Check if this is a re-onboarding
+  useEffect(() => {
+    const checkReOnboarding = async () => {
+      if (!user) return;
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (profile?.onboarding_completed) {
+        setIsReOnboarding(true);
+        // Check if user can make adjustment
+        await checkAdjustments();
+      }
+    };
+    
+    checkReOnboarding();
+  }, [user, checkAdjustments]);
 
   const updateData = (field: keyof OnboardingData, value: any) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -95,6 +119,13 @@ export default function Onboarding() {
   const handleSubmit = async () => {
     if (!user) return;
 
+    // If re-onboarding, validate adjustment limit first
+    if (isReOnboarding && !canAdjust) {
+      toast.error("Você atingiu o limite de ajustes do seu plano. Faça upgrade para Pro.");
+      navigate("/planos");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -125,31 +156,70 @@ export default function Onboarding() {
         return;
       }
 
-      toast.success("Respostas salvas! Gerando sua rotina...");
-      setIsGenerating(true);
+      // If re-onboarding, register this as an adjustment using validateAndExecute
+      if (isReOnboarding) {
+        const result = await validateAndExecute(
+          're_onboarding',
+          async () => {
+            toast.success("Respostas salvas! Gerando sua rotina...");
+            setIsGenerating(true);
 
-      // Generate routine using AI
-      const { data: session } = await supabase.auth.getSession();
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.session?.access_token}`,
+            const { data: session } = await supabase.auth.getSession();
+            
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${session?.session?.access_token}`,
+                },
+              }
+            );
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+              throw new Error(responseData.error || "Erro ao gerar rotina");
+            }
+
+            return responseData;
           },
+          undefined,
+          'Re-onboarding - Ajuste de rotina'
+        );
+
+        if (result.success) {
+          toast.success("Rotina ajustada com sucesso!");
+          navigate("/rotina");
         }
-      );
+      } else {
+        // First onboarding - no adjustment needed
+        toast.success("Respostas salvas! Gerando sua rotina...");
+        setIsGenerating(true);
 
-      const result = await response.json();
+        const { data: session } = await supabase.auth.getSession();
+        
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.session?.access_token}`,
+            },
+          }
+        );
 
-      if (!response.ok) {
-        throw new Error(result.error || "Erro ao gerar rotina");
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Erro ao gerar rotina");
+        }
+
+        toast.success("Rotina gerada com sucesso!");
+        navigate("/rotina");
       }
-
-      toast.success("Rotina gerada com sucesso!");
-      navigate("/rotina");
     } catch (error) {
       console.error("Submit error:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao processar. Tente novamente.");
