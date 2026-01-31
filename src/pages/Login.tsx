@@ -36,7 +36,8 @@ export default function Login() {
       if (error.message.includes("Invalid login credentials")) {
         toast.error("Email ou senha incorretos");
       } else {
-        toast.error(error.message);
+        console.error("Auth error:", error);
+        toast.error("Erro ao fazer login. Tente novamente.");
       }
       setIsLoading(false);
       return;

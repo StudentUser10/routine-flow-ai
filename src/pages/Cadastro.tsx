@@ -49,7 +49,8 @@ export default function Cadastro() {
       if (error.message.includes("already registered")) {
         toast.error("Este email já está cadastrado. Tente fazer login.");
       } else {
-        toast.error(error.message);
+        console.error("Signup error:", error);
+        toast.error("Erro ao criar conta. Tente novamente.");
       }
       setIsLoading(false);
       return;
