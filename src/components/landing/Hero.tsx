@@ -13,15 +13,15 @@ export function Hero() {
         <div className="max-w-3xl mx-auto text-center space-y-8">
           {/* Main headline - clear and direct */}
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold leading-[1.1] tracking-tight">
-            Organize sua rotina{" "}
-            <span className="text-primary">sem esforço</span>
+            Sua semana organizada{" "}
+            <span className="text-primary">automaticamente</span>
             <br className="hidden sm:block" />
-            — todos os dias.
+            em 2 minutos.
           </h1>
 
           {/* Supporting text - one line */}
           <p className="text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto">
-            Uma rotina inteligente que se adapta à sua vida, não o contrário.
+            Responda 8 perguntas. A IA cria sua rotina semanal personalizada.
           </p>
 
           {/* Single CTA - prominent */}

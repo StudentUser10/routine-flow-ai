@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGamification } from "@/hooks/useGamification";
-import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
 import { useGenerationLimit } from "@/hooks/useGenerationLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,15 +12,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StreakDisplay } from "@/components/gamification/StreakDisplay";
 import { PointsLevel } from "@/components/gamification/PointsLevel";
-import { AdjustmentsRemaining } from "@/components/gamification/AdjustmentsRemaining";
 
 interface Profile {
   id: string;
   name: string;
   email: string;
   plan: "free" | "pro" | "annual";
-  adjustments_used: number;
-  adjustments_limit: number;
   onboarding_completed: boolean;
 }
 
@@ -29,13 +25,11 @@ export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const { plan, checkSubscription } = useSubscription();
   const { gamification } = useGamification();
-  const { checkCanAdjust } = useRoutineAdjustment();
   const { canGenerate, plan: generationPlan } = useGenerationLimit();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [canAdjust, setCanAdjust] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -46,7 +40,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       fetchProfile();
-      fetchAdjustmentStatus();
     }
   }, [user]);
 
@@ -60,11 +53,6 @@ export default function Dashboard() {
       navigate('/dashboard', { replace: true });
     }
   }, [searchParams, checkSubscription, navigate]);
-
-  const fetchAdjustmentStatus = async () => {
-    const status = await checkCanAdjust();
-    setCanAdjust(status?.canAdjust ?? true);
-  };
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -170,7 +158,7 @@ export default function Dashboard() {
                   size="lg" 
                   onClick={() => {
                     if (generationPlan === 'free' && !canGenerate) {
-                      toast.error('Você atingiu o limite de gerações gratuitas. Faça upgrade para ajustar sua rotina.');
+                      toast.error('Você atingiu o limite de gerações gratuitas. Faça upgrade para continuar.');
                       navigate("/planos");
                     } else {
                       navigate("/onboarding");
@@ -179,7 +167,7 @@ export default function Dashboard() {
                   className="gap-2"
                 >
                   <RotateCcw className="w-5 h-5" />
-                  Ajustar minha rotina
+                  Refazer onboarding
                 </Button>
               </div>
 
@@ -208,9 +196,16 @@ export default function Dashboard() {
                   </Button>
                 </div>
 
-                <AdjustmentsRemaining compact />
+                {plan === 'free' && (
+                  <p className="text-sm text-muted-foreground">
+                    {canGenerate 
+                      ? "Você pode gerar ou regenerar sua rotina."
+                      : "Limite de gerações atingido este mês."
+                    }
+                  </p>
+                )}
 
-                {plan === 'free' && !canAdjust && (
+                {plan === 'free' && !canGenerate && (
                   <Button 
                     className="w-full gap-2" 
                     onClick={() => navigate('/planos')}

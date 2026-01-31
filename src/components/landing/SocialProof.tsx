@@ -3,18 +3,18 @@ import { Users, Clock, Zap } from "lucide-react";
 const stats = [
   {
     icon: Users,
-    value: "500+",
-    label: "rotinas geradas",
+    value: "8",
+    label: "perguntas rápidas",
   },
   {
     icon: Clock,
     value: "2 min",
-    label: "para começar",
+    label: "para sua rotina",
   },
   {
     icon: Zap,
-    value: "100%",
-    label: "personalizado",
+    value: "7 dias",
+    label: "planejados por IA",
   },
 ];
 
@@ -40,13 +40,15 @@ export function SocialProof() {
             ))}
           </div>
 
-          {/* Quote */}
+          {/* Value proposition */}
           <div className="text-center p-6 sm:p-8 rounded-2xl bg-card border border-border">
-            <p className="text-lg sm:text-xl text-foreground/90 italic mb-4">
-              "Criei minha rotina em menos de 2 minutos. Primeira vez que um app de produtividade realmente funcionou pra mim."
+            <p className="text-lg sm:text-xl text-foreground/90 mb-4">
+              Você responde perguntas simples sobre seu dia.
+              <br />
+              <span className="text-primary font-semibold">A IA organiza toda a sua semana.</span>
             </p>
             <p className="text-muted-foreground text-sm">
-              — Feito para pessoas reais, não para agendas perfeitas.
+              Sem planilhas. Sem decisões. Só execução.
             </p>
           </div>
         </div>
