@@ -18,9 +18,33 @@ const PLAN_LIMITS = {
   annual: 999999, // Unlimited
 } as const;
 
+// Valid actions and sources
+const VALID_ACTIONS = ["check", "register"] as const;
+const VALID_SOURCES = ["manual", "ai", "re_onboarding", "regenerate"] as const;
+
+// UUID format validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Max lengths for text fields
+const MAX_DESCRIPTION_LENGTH = 1000;
+const MAX_SOURCE_LENGTH = 50;
+
+// Generic error messages for clients
+const CLIENT_ERRORS = {
+  UNAUTHORIZED: "Não autorizado",
+  PROFILE_NOT_FOUND: "Perfil não encontrado",
+  INVALID_ACTION: "Ação inválida. Use 'check' ou 'register'",
+  INVALID_SOURCE: "Fonte inválida",
+  INVALID_ROUTINE_ID: "ID de rotina inválido",
+  DESCRIPTION_TOO_LONG: "Descrição muito longa (máximo 1000 caracteres)",
+  INTERNAL_ERROR: "Erro ao verificar ajustes",
+  LIMIT_REACHED: "Você atingiu o limite de ajustes do seu plano. Faça upgrade para Pro.",
+  INSERT_ERROR: "Erro ao registrar ajuste",
+} as const;
+
 interface ValidateRequest {
-  action: "check" | "register";
-  source?: "manual" | "ai" | "re_onboarding" | "regenerate";
+  action: string;
+  source?: string;
   routine_id?: string;
   description?: string;
 }
@@ -44,7 +68,7 @@ serve(async (req) => {
     if (!authHeader) {
       logStep("ERROR: Missing authorization header");
       return new Response(
-        JSON.stringify({ error: "Não autorizado", canAdjust: false }),
+        JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED, canAdjust: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
@@ -55,7 +79,7 @@ serve(async (req) => {
     if (userError || !userData.user) {
       logStep("ERROR: Auth failed", { error: userError?.message });
       return new Response(
-        JSON.stringify({ error: "Não autorizado", canAdjust: false }),
+        JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED, canAdjust: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
@@ -64,10 +88,56 @@ serve(async (req) => {
     logStep("User authenticated", { userId });
 
     // Parse request body
-    const body: ValidateRequest = await req.json();
+    let body: ValidateRequest;
+    try {
+      body = await req.json();
+    } catch {
+      logStep("ERROR: Invalid JSON body");
+      return new Response(
+        JSON.stringify({ error: CLIENT_ERRORS.INVALID_ACTION, canAdjust: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
     const { action, source, routine_id, description } = body;
 
-    logStep("Request received", { action, source });
+    // Validate action field
+    if (!action || !VALID_ACTIONS.includes(action as typeof VALID_ACTIONS[number])) {
+      logStep("ERROR: Invalid action", { action });
+      return new Response(
+        JSON.stringify({ error: CLIENT_ERRORS.INVALID_ACTION, canAdjust: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Validate source field (if provided)
+    if (source && (!VALID_SOURCES.includes(source as typeof VALID_SOURCES[number]) || source.length > MAX_SOURCE_LENGTH)) {
+      logStep("ERROR: Invalid source", { source });
+      return new Response(
+        JSON.stringify({ error: CLIENT_ERRORS.INVALID_SOURCE, canAdjust: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Validate routine_id format (if provided)
+    if (routine_id && !UUID_REGEX.test(routine_id)) {
+      logStep("ERROR: Invalid routine_id format", { routine_id });
+      return new Response(
+        JSON.stringify({ error: CLIENT_ERRORS.INVALID_ROUTINE_ID, canAdjust: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Validate description length (if provided)
+    if (description && description.length > MAX_DESCRIPTION_LENGTH) {
+      logStep("ERROR: Description too long", { length: description.length });
+      return new Response(
+        JSON.stringify({ error: CLIENT_ERRORS.DESCRIPTION_TOO_LONG, canAdjust: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    logStep("Request validated", { action, source });
 
     // Get user's plan
     const { data: profile, error: profileError } = await supabaseClient
@@ -79,7 +149,7 @@ serve(async (req) => {
     if (profileError || !profile) {
       logStep("ERROR: Profile not found");
       return new Response(
-        JSON.stringify({ error: "Perfil não encontrado", canAdjust: false }),
+        JSON.stringify({ error: CLIENT_ERRORS.PROFILE_NOT_FOUND, canAdjust: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
@@ -103,7 +173,7 @@ serve(async (req) => {
     if (countError) {
       logStep("ERROR: Count failed", { error: countError.message });
       return new Response(
-        JSON.stringify({ error: "Erro ao verificar ajustes", canAdjust: false }),
+        JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR, canAdjust: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
@@ -139,7 +209,7 @@ serve(async (req) => {
           JSON.stringify({
             success: false,
             canAdjust: false,
-            error: "Você atingiu o limite de ajustes do seu plano. Faça upgrade para Pro.",
+            error: CLIENT_ERRORS.LIMIT_REACHED,
             adjustmentsUsed,
             adjustmentsLimit: limit,
             remaining: 0,
@@ -148,21 +218,25 @@ serve(async (req) => {
         );
       }
 
-      // Register the adjustment
+      // Register the adjustment - sanitize description to prevent injection
+      const sanitizedDescription = description 
+        ? description.slice(0, MAX_DESCRIPTION_LENGTH).trim()
+        : `Ajuste ${source || "manual"}`;
+        
       const { error: insertError } = await supabaseClient
         .from("routine_adjustments")
         .insert({
           user_id: userId,
           routine_id: routine_id || null,
           source: source || "manual",
-          description: description || `Ajuste ${source || "manual"}`,
+          description: sanitizedDescription,
           changes: {},
         });
 
       if (insertError) {
         logStep("ERROR: Insert failed", { error: insertError.message });
         return new Response(
-          JSON.stringify({ success: false, error: "Erro ao registrar ajuste" }),
+          JSON.stringify({ success: false, error: CLIENT_ERRORS.INSERT_ERROR }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
         );
       }
@@ -184,7 +258,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: "Ação inválida" }),
+      JSON.stringify({ error: CLIENT_ERRORS.INVALID_ACTION }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
 
@@ -192,7 +266,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
     return new Response(
-      JSON.stringify({ error: "Erro interno", canAdjust: false }),
+      JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR, canAdjust: false }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
