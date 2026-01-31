@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useGamification } from "@/hooks/useGamification";
+import { useAdjustments } from "@/hooks/useAdjustments";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, LogOut, Sparkles, RotateCcw, Loader2, Crown, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PlanBadge } from "@/components/PlanBadge";
-import { AdjustmentsIndicator } from "@/components/AdjustmentsIndicator";
+import { StreakDisplay } from "@/components/gamification/StreakDisplay";
+import { PointsLevel } from "@/components/gamification/PointsLevel";
+import { AdjustmentsRemaining } from "@/components/gamification/AdjustmentsRemaining";
 
 interface Profile {
   id: string;
@@ -23,6 +27,8 @@ interface Profile {
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const { plan, checkSubscription } = useSubscription();
+  const { gamification } = useGamification();
+  const { canAdjust } = useAdjustments();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -162,8 +168,14 @@ export default function Dashboard() {
                 </Button>
               </div>
 
+              {/* Gamification widgets */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                <StreakDisplay />
+                <PointsLevel />
+              </div>
+
               {/* Plan info card */}
-              <div className="p-6 bg-card border border-border rounded-xl mt-8 space-y-4">
+              <div className="p-6 bg-card border border-border rounded-xl mt-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {plan === 'free' ? (
@@ -181,9 +193,9 @@ export default function Dashboard() {
                   </Button>
                 </div>
 
-                <AdjustmentsIndicator />
+                <AdjustmentsRemaining compact />
 
-                {plan === 'free' && (
+                {plan === 'free' && !canAdjust && (
                   <Button 
                     className="w-full gap-2" 
                     onClick={() => navigate('/planos')}

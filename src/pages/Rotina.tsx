@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdjustments } from "@/hooks/useAdjustments";
+import { useGamification } from "@/hooks/useGamification";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, LogOut, Settings, RefreshCw, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { RoutineWeekView } from "@/components/routine/RoutineWeekView";
 import { RoutineDayView } from "@/components/routine/RoutineDayView";
+import { DailyChecklist } from "@/components/gamification/DailyChecklist";
+import { StreakDisplay } from "@/components/gamification/StreakDisplay";
+import { AdjustmentsRemaining } from "@/components/gamification/AdjustmentsRemaining";
 import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
 export interface RoutineBlock {
   id: string;
   routine_id: string;
@@ -33,6 +37,8 @@ export interface Routine {
 
 export default function Rotina() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { canAdjust, validateAndExecute, status: adjustmentStatus } = useAdjustments();
+  const { initializeDayChecklist } = useGamification();
   const navigate = useNavigate();
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [blocks, setBlocks] = useState<RoutineBlock[]>([]);
@@ -124,34 +130,38 @@ export default function Rotina() {
   };
 
   const handleRegenerate = async () => {
-    setRegenerating(true);
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.session?.access_token}`,
-          },
+    // Validate adjustment before proceeding
+    const result = await validateAndExecute(
+      'regenerate',
+      async () => {
+        const { data: session } = await supabase.auth.getSession();
+        
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.session?.access_token}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Erro ao regenerar rotina");
         }
-      );
 
-      const result = await response.json();
+        return data;
+      },
+      routine?.id,
+      'Regeneração de rotina'
+    );
 
-      if (!response.ok) {
-        throw new Error(result.error || "Erro ao regenerar rotina");
-      }
-
+    if (result.success) {
       toast.success("Rotina regenerada com sucesso!");
       await fetchRoutine();
-    } catch (error) {
-      console.error("Regenerate error:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao regenerar");
-    } finally {
-      setRegenerating(false);
     }
   };
 
@@ -239,80 +249,103 @@ export default function Rotina() {
 
       {/* Main content */}
       <main className="container px-4 py-6">
-        {!routine ? (
-          <div className="text-center py-12 space-y-4">
-            <p className="text-muted-foreground">
-              Você ainda não tem uma rotina para esta semana.
-            </p>
-            <Button variant="hero" onClick={handleRegenerate} disabled={regenerating}>
-              {regenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Gerando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Gerar rotina
-                </>
-              )}
-            </Button>
+        {/* Gamification widgets - sidebar on desktop, top on mobile */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Gamification sidebar */}
+          <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
+            <DailyChecklist blocks={blocks} />
+            <StreakDisplay />
+            <AdjustmentsRemaining />
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* View toggle and actions */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                <Button
-                  variant={viewMode === "week" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("week")}
-                >
-                  Semana
-                </Button>
-                <Button
-                  variant={viewMode === "day" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("day")}
-                >
-                  Dia
-                </Button>
-              </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRegenerate}
-                disabled={regenerating}
-              >
-                {regenerating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
+          {/* Main routine content */}
+          <div className="lg:col-span-3 order-1 lg:order-2">
+            {!routine ? (
+              <div className="text-center py-12 space-y-4">
+                <p className="text-muted-foreground">
+                  Você ainda não tem uma rotina para esta semana.
+                </p>
+                <Button 
+                  variant="hero" 
+                  onClick={handleRegenerate} 
+                  disabled={regenerating || !canAdjust}
+                >
+                  {regenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Gerar rotina
+                    </>
+                  )}
+                </Button>
+                {!canAdjust && (
+                  <p className="text-sm text-destructive">
+                    Limite de ajustes atingido. Faça upgrade para Pro.
+                  </p>
                 )}
-                <span className="ml-2 hidden sm:inline">Regenerar</span>
-              </Button>
-            </div>
-
-            {/* Routine view */}
-            {viewMode === "week" ? (
-              <RoutineWeekView
-                blocks={blocks}
-                onBlockClick={(block) => {
-                  setSelectedDay(block.day_of_week);
-                  setViewMode("day");
-                }}
-              />
+              </div>
             ) : (
-              <RoutineDayView
-                blocks={blocks.filter((b) => b.day_of_week === selectedDay)}
-                selectedDay={selectedDay}
-                onDayChange={setSelectedDay}
-                onFeedback={handleBlockFeedback}
-              />
+              <div className="space-y-6">
+                {/* View toggle and actions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <Button
+                      variant={viewMode === "week" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setViewMode("week")}
+                    >
+                      Semana
+                    </Button>
+                    <Button
+                      variant={viewMode === "day" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setViewMode("day")}
+                    >
+                      Dia
+                    </Button>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegenerate}
+                    disabled={regenerating || !canAdjust}
+                    title={!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina"}
+                  >
+                    {regenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    <span className="ml-2 hidden sm:inline">Regenerar</span>
+                  </Button>
+                </div>
+
+                {/* Routine view */}
+                {viewMode === "week" ? (
+                  <RoutineWeekView
+                    blocks={blocks}
+                    onBlockClick={(block) => {
+                      setSelectedDay(block.day_of_week);
+                      setViewMode("day");
+                    }}
+                  />
+                ) : (
+                  <RoutineDayView
+                    blocks={blocks.filter((b) => b.day_of_week === selectedDay)}
+                    selectedDay={selectedDay}
+                    onDayChange={setSelectedDay}
+                    onFeedback={handleBlockFeedback}
+                  />
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
