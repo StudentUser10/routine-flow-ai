@@ -19,6 +19,7 @@ interface Block {
 interface HeroCardProps {
   blocks: Block[];
   selectedDay: number;
+  weekStart: Date; // REGRA: Data de início da semana para cálculo correto
   onCompleteBlock: (blockId: string) => void;
   getBlockStatus: (blockId: string) => string;
   isToday?: boolean;
@@ -38,7 +39,7 @@ const BLOCK_LABELS = {
   fixed: "Fixo",
 };
 
-export function HeroCard({ blocks, selectedDay, onCompleteBlock, getBlockStatus, isToday: isTodayProp }: HeroCardProps) {
+export function HeroCard({ blocks, selectedDay, weekStart, onCompleteBlock, getBlockStatus, isToday: isTodayProp }: HeroCardProps) {
   const now = new Date();
   const currentTime = format(now, "HH:mm");
   // Use prop if provided, otherwise calculate internally
@@ -76,18 +77,23 @@ export function HeroCard({ blocks, selectedDay, onCompleteBlock, getBlockStatus,
     return null;
   }, [blocks, currentTime, isToday]);
 
+  // REGRA ABSOLUTA: Calcular data baseada no weekStart, NUNCA em today
   const dayLabel = useMemo(() => {
     const days = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
-    const today = new Date();
-    const targetDate = new Date(today);
-    const diff = selectedDay - today.getDay();
-    targetDate.setDate(today.getDate() + diff);
+    
+    // CORREÇÃO DO BUG: Criar nova data a partir do weekStart + selectedDay
+    // weekStart é sempre domingo (day 0), então adicionamos selectedDay dias
+    const targetDate = new Date(
+      weekStart.getFullYear(),
+      weekStart.getMonth(),
+      weekStart.getDate() + selectedDay
+    );
     
     return {
       dayName: days[selectedDay],
       date: format(targetDate, "d 'de' MMMM", { locale: ptBR })
     };
-  }, [selectedDay]);
+  }, [selectedDay, weekStart]);
 
   if (!heroBlock) {
     return (
