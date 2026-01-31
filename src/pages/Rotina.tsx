@@ -371,6 +371,7 @@ export default function Rotina() {
                 <MobileRoutineView
                   blocks={blocks}
                   selectedDay={selectedDay}
+                  weekStart={currentWeekStart}
                   onDayChange={setSelectedDay}
                 />
               </div>

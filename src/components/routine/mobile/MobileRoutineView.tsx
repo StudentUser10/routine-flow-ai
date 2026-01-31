@@ -25,6 +25,7 @@ interface Block {
 interface MobileRoutineViewProps {
   blocks: Block[];
   selectedDay: number;
+  weekStart: Date; // REGRA: Data de início da semana para cálculo correto
   onDayChange: (day: number) => void;
 }
 
@@ -33,7 +34,7 @@ const SHORT_DAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 // REGRA TEMPORAL: Mensagem padrão
 const TEMPORAL_BLOCK_MESSAGE = "Você só pode concluir blocos do dia atual.";
 
-export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRoutineViewProps) {
+export function MobileRoutineView({ blocks, selectedDay, weekStart, onDayChange }: MobileRoutineViewProps) {
   const { 
     dailyProgress, 
     gamification,
@@ -177,6 +178,7 @@ export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRo
       <HeroCard 
         blocks={selectedDayBlocks}
         selectedDay={selectedDay}
+        weekStart={weekStart}
         onCompleteBlock={(blockId) => handleCompleteBlock(blockId, selectedDay)}
         getBlockStatus={getBlockStatus}
         isToday={isSelectedDayToday}
