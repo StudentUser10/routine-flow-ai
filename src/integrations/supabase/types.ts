@@ -372,6 +372,27 @@ export type Database = {
           },
         ]
       }
+      routine_generations: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       routines: {
         Row: {
           created_at: string

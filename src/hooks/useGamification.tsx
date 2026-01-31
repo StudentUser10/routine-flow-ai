@@ -57,6 +57,9 @@ const LEVELS: LevelInfo[] = [
   { name: 'Mestre da Rotina', minPoints: 5000 },
 ];
 
+// REGRA TEMPORAL: Mensagem padrão para bloqueio
+const TEMPORAL_BLOCK_MESSAGE = "Você só pode concluir blocos do dia atual.";
+
 export function useGamification() {
   const { user, session } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -184,8 +187,39 @@ export function useGamification() {
     }
   }, [user, today, blockStatuses, fetchGamificationData]);
 
-  const updateBlockStatus = useCallback(async (blockId: string, status: BlockStatusType) => {
+  // ============================================
+  // REGRA TEMPORAL: VERIFICAR SE BLOCO É DO DIA ATUAL
+  // ============================================
+  const isBlockFromToday = useCallback((blockDayOfWeek: number): boolean => {
+    const todayDayOfWeek = new Date().getDay();
+    return blockDayOfWeek === todayDayOfWeek;
+  }, []);
+
+  // ============================================
+  // REGRA TEMPORAL: VERIFICAR SE PODE CONCLUIR BLOCO
+  // ============================================
+  const canCompleteBlock = useCallback((blockDayOfWeek: number): { allowed: boolean; message?: string } => {
+    if (!isBlockFromToday(blockDayOfWeek)) {
+      return { allowed: false, message: TEMPORAL_BLOCK_MESSAGE };
+    }
+    return { allowed: true };
+  }, [isBlockFromToday]);
+
+  const updateBlockStatus = useCallback(async (blockId: string, status: BlockStatusType, blockDayOfWeek?: number) => {
     if (!user) return false;
+
+    // ============================================
+    // REGRA TEMPORAL: BLOQUEAR CONCLUSÃO FORA DO DIA ATUAL
+    // ============================================
+    // Se blockDayOfWeek foi fornecido, verificar a regra temporal
+    if (blockDayOfWeek !== undefined && (status === 'completed' || status === 'skipped')) {
+      const { allowed, message } = canCompleteBlock(blockDayOfWeek);
+      if (!allowed) {
+        toast.error(message);
+        console.log('[GAMIFICATION] Temporal block: attempted to complete block from different day');
+        return false;
+      }
+    }
 
     try {
       // Check if status exists
@@ -380,6 +414,8 @@ export function useGamification() {
     getLevelInfo,
     addPoints,
     refetch: fetchGamificationData,
+    canCompleteBlock,
+    isBlockFromToday,
     POINTS,
   };
 }

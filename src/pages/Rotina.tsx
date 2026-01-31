@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
 import { useGamification } from "@/hooks/useGamification";
+import { useGenerationLimit } from "@/hooks/useGenerationLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, LogOut, Settings, RefreshCw, Loader2, ChevronLeft, ChevronRight, Home } from "lucide-react";
+import { CalendarDays, LogOut, Settings, RefreshCw, Loader2, ChevronLeft, ChevronRight, Home, Sparkles, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { RoutineWeekView } from "@/components/routine/RoutineWeekView";
 import { MobileRoutineView } from "@/components/routine/mobile/MobileRoutineView";
@@ -38,6 +39,7 @@ export default function Rotina() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { executeRoutineAdjustment, checkCanAdjust } = useRoutineAdjustment();
   const { initializeDayChecklist } = useGamification();
+  const { used, limit, canGenerate, plan, refetch: refetchGeneration, FREE_PLAN_MONTHLY_LIMIT } = useGenerationLimit();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [routine, setRoutine] = useState<Routine | null>(null);
@@ -137,6 +139,13 @@ export default function Rotina() {
   };
 
   const handleRegenerate = async () => {
+    // REGRA: Se plano Free e limite atingido, redirecionar para planos
+    if (plan === 'free' && !canGenerate) {
+      toast.error("Você atingiu o limite de gerações gratuitas deste mês.");
+      navigate("/planos");
+      return;
+    }
+    
     setRegenerating(true);
     
     // REGRA ABSOLUTA: Sempre enviar week_start explícito para o backend
@@ -165,6 +174,10 @@ export default function Rotina() {
         const data = await response.json();
 
         if (!response.ok) {
+          // REGRA: Verificar se é erro de limite de geração
+          if (data.upgrade_required) {
+            navigate("/planos");
+          }
           throw new Error(data.error || "Erro ao regenerar rotina");
         }
 
@@ -180,6 +193,7 @@ export default function Rotina() {
       toast.success("Rotina regenerada com sucesso!");
       await fetchRoutine();
       await checkAdjustmentStatus();
+      await refetchGeneration();
     }
   };
 
@@ -207,6 +221,10 @@ export default function Rotina() {
   if (!user) return null;
 
   const weekLabel = format(currentWeekStart, "'Semana de' dd 'de' MMMM", { locale: ptBR });
+  
+  // REGRA: Badge de limite de geração para plano Free
+  const showGenerationBadge = plan === 'free';
+  const generationLimitReached = plan === 'free' && !canGenerate;
 
   return (
     <div className="min-h-screen bg-background">
@@ -221,6 +239,25 @@ export default function Rotina() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Badge de limite de geração */}
+            {showGenerationBadge && (
+              <div 
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
+                  generationLimitReached 
+                    ? 'bg-destructive/10 text-destructive' 
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+                onClick={() => navigate("/planos")}
+                title="Gerações de rotina este mês"
+              >
+                {generationLimitReached ? (
+                  <Lock className="w-3 h-3" />
+                ) : (
+                  <Sparkles className="w-3 h-3" />
+                )}
+                <span>{used}/{FREE_PLAN_MONTHLY_LIMIT}</span>
+              </div>
+            )}
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate("/dashboard")}>
               <Home className="w-5 h-5" />
             </Button>
@@ -256,28 +293,51 @@ export default function Rotina() {
             <p className="text-muted-foreground">
               Você ainda não tem uma rotina para esta semana.
             </p>
-            <Button 
-              variant="hero" 
-              onClick={handleRegenerate} 
-              disabled={regenerating || !canAdjust}
-              className="h-12 px-6"
-            >
-              {regenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Gerando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Gerar rotina
-                </>
-              )}
-            </Button>
-            {!canAdjust && (
-              <p className="text-sm text-destructive">
-                Limite de ajustes atingido. Faça upgrade para Pro.
-              </p>
+            
+            {/* REGRA: Botão com estado de limite */}
+            {generationLimitReached ? (
+              <>
+                <Button 
+                  variant="hero" 
+                  onClick={() => navigate("/planos")}
+                  className="h-12 px-6"
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  Ver planos
+                </Button>
+                <p className="text-sm text-destructive">
+                  🔒 Limite gratuito atingido ({used}/{FREE_PLAN_MONTHLY_LIMIT})
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Gerações ilimitadas no plano Pro
+                </p>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="hero" 
+                  onClick={handleRegenerate} 
+                  disabled={regenerating || !canAdjust}
+                  className="h-12 px-6"
+                >
+                  {regenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Gerar rotina
+                    </>
+                  )}
+                </Button>
+                {!canAdjust && (
+                  <p className="text-sm text-destructive">
+                    Limite de ajustes atingido. Faça upgrade para Pro.
+                  </p>
+                )}
+              </>
             )}
           </div>
         ) : (
@@ -285,17 +345,24 @@ export default function Rotina() {
             {/* Mobile View - New WOW Experience */}
             {isMobile ? (
               <div className="space-y-4">
-                {/* Regenerate button for mobile */}
-                <div className="flex justify-end">
+                {/* Regenerate button for mobile with limit state */}
+                <div className="flex items-center justify-end gap-2">
+                  {showGenerationBadge && (
+                    <span className="text-xs text-muted-foreground">
+                      {generationLimitReached ? 'Limite atingido' : `${used}/${FREE_PLAN_MONTHLY_LIMIT}`}
+                    </span>
+                  )}
                   <Button
-                    variant="outline"
+                    variant={generationLimitReached ? "outline" : "outline"}
                     size="sm"
                     className="h-9"
-                    onClick={handleRegenerate}
-                    disabled={regenerating || !canAdjust}
+                    onClick={generationLimitReached ? () => navigate("/planos") : handleRegenerate}
+                    disabled={regenerating || (!generationLimitReached && !canAdjust)}
                   >
                     {regenerating ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : generationLimitReached ? (
+                      <Lock className="w-4 h-4" />
                     ) : (
                       <RefreshCw className="w-4 h-4" />
                     )}
@@ -330,20 +397,39 @@ export default function Rotina() {
                     </Button>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    className="h-10 px-4"
-                    onClick={handleRegenerate}
-                    disabled={regenerating || !canAdjust}
-                    title={!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina"}
-                  >
-                    {regenerating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
+                  <div className="flex items-center gap-2">
+                    {/* Desktop generation limit badge */}
+                    {showGenerationBadge && (
+                      <div 
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${
+                          generationLimitReached 
+                            ? 'bg-destructive/10 text-destructive' 
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                        onClick={() => navigate("/planos")}
+                      >
+                        {generationLimitReached ? <Lock className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+                        <span>{generationLimitReached ? 'Limite atingido' : `${used}/${FREE_PLAN_MONTHLY_LIMIT} gerações`}</span>
+                      </div>
                     )}
-                    <span className="ml-2">Regenerar</span>
-                  </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="h-10 px-4"
+                      onClick={generationLimitReached ? () => navigate("/planos") : handleRegenerate}
+                      disabled={regenerating || (!generationLimitReached && !canAdjust)}
+                      title={generationLimitReached ? "Ver planos" : (!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina")}
+                    >
+                      {regenerating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : generationLimitReached ? (
+                        <Lock className="w-4 h-4" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      <span className="ml-2">{generationLimitReached ? "Ver planos" : "Regenerar"}</span>
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Routine view */}

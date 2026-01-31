@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, XCircle, Clock, Flame } from "lucide-react";
+import { CheckCircle2, Circle, XCircle, Clock, Flame, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,13 @@ interface MobileDailyChecklistProps {
   completed: number;
   total: number;
   getBlockStatus: (blockId: string) => BlockStatusType;
-  onStatusChange: (blockId: string, status: BlockStatusType) => void;
+  onStatusChange: (blockId: string, status: BlockStatusType, dayOfWeek: number) => void;
   className?: string;
+  isToday?: boolean;
 }
+
+// REGRA TEMPORAL: Mensagem padrão
+const TEMPORAL_BLOCK_MESSAGE = "Você só pode concluir blocos do dia atual.";
 
 export function MobileDailyChecklist({
   blocks,
@@ -33,9 +37,15 @@ export function MobileDailyChecklist({
   total,
   getBlockStatus,
   onStatusChange,
-  className
+  className,
+  isToday = true
 }: MobileDailyChecklistProps) {
-  const handleClick = (blockId: string) => {
+  const handleClick = (blockId: string, dayOfWeek: number) => {
+    // REGRA TEMPORAL: Bloquear interação fora do dia atual
+    if (!isToday) {
+      return;
+    }
+    
     const currentStatus = getBlockStatus(blockId);
     let newStatus: BlockStatusType;
     switch (currentStatus) {
@@ -51,10 +61,13 @@ export function MobileDailyChecklist({
       default:
         newStatus = "completed";
     }
-    onStatusChange(blockId, newStatus);
+    onStatusChange(blockId, newStatus, dayOfWeek);
   };
 
-  const getStatusIcon = (status: BlockStatusType) => {
+  const getStatusIcon = (status: BlockStatusType, blocked: boolean) => {
+    if (blocked) {
+      return <Lock className="w-6 h-6 text-muted-foreground/30 flex-shrink-0" />;
+    }
     switch (status) {
       case "completed":
         return <CheckCircle2 className="w-6 h-6 text-rest-block flex-shrink-0" />;
@@ -114,10 +127,22 @@ export function MobileDailyChecklist({
         </div>
       </div>
 
+      {/* REGRA TEMPORAL: Aviso se não for o dia atual */}
+      {!isToday && (
+        <div className="px-4 py-3 bg-muted/50 border-b border-border">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="w-4 h-4" />
+            <span>{TEMPORAL_BLOCK_MESSAGE}</span>
+          </div>
+        </div>
+      )}
+
       {/* Block list */}
       <div className="divide-y divide-border">
         {blocks.map((block) => {
           const status = getBlockStatus(block.id);
+          const isBlocked = !isToday;
+          
           return (
             <Button
               key={block.id}
@@ -125,12 +150,14 @@ export function MobileDailyChecklist({
               className={cn(
                 "w-full justify-start gap-4 h-auto py-4 px-4 rounded-none",
                 "hover:bg-muted/50 active:bg-muted transition-colors",
-                status === "completed" && "bg-rest-block/5",
-                status === "skipped" && "opacity-50"
+                status === "completed" && !isBlocked && "bg-rest-block/5",
+                status === "skipped" && "opacity-50",
+                isBlocked && "opacity-50 cursor-not-allowed hover:bg-transparent"
               )}
-              onClick={() => handleClick(block.id)}
+              onClick={() => handleClick(block.id, block.day_of_week)}
+              disabled={isBlocked}
             >
-              {getStatusIcon(status)}
+              {getStatusIcon(status, isBlocked)}
               <div className="flex-1 text-left min-w-0">
                 <span className={cn(
                   "block text-sm font-medium truncate",
@@ -149,7 +176,7 @@ export function MobileDailyChecklist({
       </div>
 
       {/* Completion message */}
-      {completed === total && total > 0 && (
+      {completed === total && total > 0 && isToday && (
         <div className="p-4 bg-rest-block/10 text-center animate-fade-in">
           <p className="text-sm font-semibold text-rest-block">
             Dia concluído! 🎉
