@@ -139,6 +139,9 @@ export default function Rotina() {
   const handleRegenerate = async () => {
     setRegenerating(true);
     
+    // REGRA ABSOLUTA: Sempre enviar week_start explícito para o backend
+    const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
+    
     // CAMADA ÚNICA DE AJUSTE - REGRA ABSOLUTA
     const result = await executeRoutineAdjustment(
       'regenerate',
@@ -153,6 +156,9 @@ export default function Rotina() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${session?.session?.access_token}`,
             },
+            body: JSON.stringify({
+              week_start: weekStartStr,
+            }),
           }
         );
 

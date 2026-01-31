@@ -24,7 +24,17 @@ const CLIENT_ERRORS = {
   RATE_LIMITED: "Limite de requisições excedido. Tente novamente em alguns minutos.",
   CREDITS_EXHAUSTED: "Créditos de IA esgotados. Entre em contato com o suporte.",
   INTERNAL_ERROR: "Erro ao gerar rotina",
+  MISSING_WEEK_START: "week_start é obrigatório no formato yyyy-MM-dd",
+  INVALID_WEEK_START: "week_start deve estar no formato yyyy-MM-dd",
 } as const;
+
+// Validate date format yyyy-MM-dd
+const isValidDateFormat = (dateStr: string): boolean => {
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!regex.test(dateStr)) return false;
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime());
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -40,6 +50,35 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Parse request body to get week_start
+    let body: { week_start?: string } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // Body might be empty for backwards compatibility, will fail validation below
+    }
+
+    // REGRA ABSOLUTA: week_start é OBRIGATÓRIO
+    const weekStartStr = body.week_start;
+    
+    if (!weekStartStr) {
+      console.log("[GENERATE-ROUTINE] ERROR: Missing week_start in request body");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.MISSING_WEEK_START }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!isValidDateFormat(weekStartStr)) {
+      console.log("[GENERATE-ROUTINE] ERROR: Invalid week_start format:", weekStartStr);
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INVALID_WEEK_START }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("[GENERATE-ROUTINE] week_start received:", weekStartStr);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -264,48 +303,76 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
 
     console.log("[GENERATE-ROUTINE] All blocks validated successfully");
 
-    // Calculate week start (current week's Sunday)
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - dayOfWeek);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekStartStr = weekStart.toISOString().split("T")[0];
+    // REGRA: Usar EXATAMENTE o week_start recebido do frontend
+    console.log("[GENERATE-ROUTINE] Using week_start from frontend:", weekStartStr);
 
-    // Deactivate any existing active routine for this user
-    await supabase
+    // Check if routine already exists for this user and week
+    const { data: existingRoutine } = await supabase
       .from("routines")
-      .update({ is_active: false })
+      .select("id")
       .eq("user_id", user.id)
-      .eq("is_active", true);
+      .eq("week_start", weekStartStr)
+      .maybeSingle();
 
-    // Create new routine
-    const { data: routine, error: routineError } = await supabase
-      .from("routines")
-      .upsert({
-        user_id: user.id,
-        week_start: weekStartStr,
-        is_active: true,
-        version: 1,
-      }, { onConflict: "user_id,week_start" })
-      .select()
-      .single();
+    let routine;
 
-    if (routineError) {
-      console.error("[GENERATE-ROUTINE] Routine creation error:", routineError.message);
-      return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (existingRoutine) {
+      // Update existing routine
+      console.log("[GENERATE-ROUTINE] Updating existing routine:", existingRoutine.id);
+      
+      // Delete existing blocks first
+      await supabase
+        .from("routine_blocks")
+        .delete()
+        .eq("routine_id", existingRoutine.id);
+
+      // Update routine to be active
+      const { data: updatedRoutine, error: updateError } = await supabase
+        .from("routines")
+        .update({ 
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existingRoutine.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("[GENERATE-ROUTINE] Routine update error:", updateError.message);
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      routine = updatedRoutine;
+    } else {
+      // Create new routine
+      console.log("[GENERATE-ROUTINE] Creating new routine for week:", weekStartStr);
+      
+      const { data: newRoutine, error: routineError } = await supabase
+        .from("routines")
+        .insert({
+          user_id: user.id,
+          week_start: weekStartStr,
+          is_active: true,
+          version: 1,
+        })
+        .select()
+        .single();
+
+      if (routineError) {
+        console.error("[GENERATE-ROUTINE] Routine creation error:", routineError.message);
+        return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      routine = newRoutine;
     }
 
-    // Delete existing blocks for this routine
-    await supabase
-      .from("routine_blocks")
-      .delete()
-      .eq("routine_id", routine.id);
-
-    // Insert new blocks (already validated)
+    // Insert new blocks
     const blocksToInsert = routineData.blocks.map((block) => ({
       routine_id: routine.id,
       day_of_week: block.day_of_week,
@@ -336,11 +403,12 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       .update({ onboarding_completed: true })
       .eq("user_id", user.id);
 
-    console.log("[GENERATE-ROUTINE] Routine generated successfully with", blocksToInsert.length, "blocks");
+    console.log("[GENERATE-ROUTINE] Routine generated successfully for week:", weekStartStr, "with", blocksToInsert.length, "blocks");
 
     return new Response(JSON.stringify({ 
       success: true, 
       routine_id: routine.id,
+      week_start: weekStartStr,
       blocks_count: blocksToInsert.length 
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
