@@ -8,6 +8,8 @@ import { Confetti } from "./Confetti";
 import { useGamification, BlockStatusType } from "@/hooks/useGamification";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { startOfWeek } from "date-fns";
+import { dateKeyFromWeekStart, formatLocalDateKey, isSameLocalDay } from "@/lib/date";
 
 interface Block {
   id: string;
@@ -54,17 +56,27 @@ export function MobileRoutineView({ blocks, selectedDay, weekStart, onDayChange 
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Get today's blocks
-  const todayDayOfWeek = new Date().getDay();
-  const todaysBlocks = blocks.filter(b => b.day_of_week === todayDayOfWeek);
+  const now = new Date();
+  const todayKey = formatLocalDateKey(now);
+  const todayDayOfWeek = now.getDay();
+
+  // REGRA ABSOLUTA: semana visual só é "semana atual" se weekStart bater com o início da semana de HOJE
+  const todayWeekStart = startOfWeek(now, { weekStartsOn: 0 });
+  const isViewingCurrentWeek = isSameLocalDay(weekStart, todayWeekStart);
+
+  const todaysBlocks = isViewingCurrentWeek
+    ? blocks.filter(b => b.day_of_week === todayDayOfWeek)
+    : [];
   const selectedDayBlocks = blocks.filter(b => b.day_of_week === selectedDay);
 
-  // REGRA TEMPORAL: Verificar se o dia selecionado é hoje
-  const isSelectedDayToday = selectedDay === todayDayOfWeek;
+  // REGRA TEMPORAL: dia selecionado só é interativo se a DATA REAL for hoje
+  const selectedDateKey = dateKeyFromWeekStart(weekStart, selectedDay);
+  const isSelectedDayToday = selectedDateKey === todayKey;
 
   // Initialize checklist for today
   useEffect(() => {
     if (todaysBlocks.length > 0 && !loading) {
-      initializeDayChecklist(todaysBlocks);
+      initializeDayChecklist(todaysBlocks.map(b => ({ id: b.id })));
     }
   }, [todaysBlocks.length, loading]);
 
@@ -84,8 +96,10 @@ export function MobileRoutineView({ blocks, selectedDay, weekStart, onDayChange 
 
   // Handle status change with haptic feedback and temporal validation
   const handleStatusChange = useCallback(async (blockId: string, newStatus: BlockStatusType, dayOfWeek: number) => {
+    const blockDateKey = dateKeyFromWeekStart(weekStart, dayOfWeek);
+
     // REGRA TEMPORAL: Bloquear conclusão fora do dia atual
-    if (!isBlockFromToday(dayOfWeek)) {
+    if (!isBlockFromToday(blockDateKey)) {
       toast.error(TEMPORAL_BLOCK_MESSAGE);
       return;
     }
@@ -94,14 +108,16 @@ export function MobileRoutineView({ blocks, selectedDay, weekStart, onDayChange 
     if (navigator.vibrate && newStatus === "completed") {
       navigator.vibrate(30);
     }
-    await updateBlockStatus(blockId, newStatus, dayOfWeek);
-  }, [updateBlockStatus, isBlockFromToday]);
+    await updateBlockStatus(blockId, newStatus, blockDateKey);
+  }, [updateBlockStatus, isBlockFromToday, weekStart]);
 
   // Handle complete from hero card
   const handleCompleteBlock = useCallback(async (blockId: string, dayOfWeek?: number) => {
-    // REGRA TEMPORAL: Bloquear conclusão fora do dia atual
     const blockDay = dayOfWeek ?? selectedDay;
-    if (!isBlockFromToday(blockDay)) {
+    const blockDateKey = dateKeyFromWeekStart(weekStart, blockDay);
+
+    // REGRA TEMPORAL: Bloquear conclusão fora do dia atual
+    if (!isBlockFromToday(blockDateKey)) {
       toast.error(TEMPORAL_BLOCK_MESSAGE);
       return;
     }
@@ -109,8 +125,8 @@ export function MobileRoutineView({ blocks, selectedDay, weekStart, onDayChange 
     if (navigator.vibrate) {
       navigator.vibrate([30, 20, 50]);
     }
-    await updateBlockStatus(blockId, "completed", blockDay);
-  }, [updateBlockStatus, selectedDay, isBlockFromToday]);
+    await updateBlockStatus(blockId, "completed", blockDateKey);
+  }, [updateBlockStatus, selectedDay, isBlockFromToday, weekStart]);
 
   // Swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {

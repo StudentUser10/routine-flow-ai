@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useGamification, BlockStatusType } from '@/hooks/useGamification';
+import { formatLocalDateKey } from '@/lib/date';
 
 interface Block {
   id: string;
@@ -33,7 +34,7 @@ export function DailyChecklist({ blocks, className }: DailyChecklistProps) {
 
   useEffect(() => {
     if (todaysBlocks.length > 0 && !loading) {
-      initializeDayChecklist(todaysBlocks);
+      initializeDayChecklist(todaysBlocks.map(b => ({ id: b.id })));
     }
   }, [todaysBlocks.length, loading]);
 
@@ -53,7 +54,7 @@ export function DailyChecklist({ blocks, className }: DailyChecklistProps) {
       default:
         newStatus = 'completed';
     }
-    await updateBlockStatus(blockId, newStatus);
+    await updateBlockStatus(blockId, newStatus, formatLocalDateKey(new Date()));
   };
 
   const getStatusIcon = (status: BlockStatusType) => {
