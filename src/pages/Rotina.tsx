@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
@@ -8,10 +8,8 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, LogOut, Settings, RefreshCw, Loader2, ChevronLeft, ChevronRight, Home } from "lucide-react";
 import { toast } from "sonner";
 import { RoutineWeekView } from "@/components/routine/RoutineWeekView";
-import { RoutineDayView } from "@/components/routine/RoutineDayView";
-import { DailyChecklist } from "@/components/gamification/DailyChecklist";
-import { StreakDisplay } from "@/components/gamification/StreakDisplay";
-import { AdjustmentsRemaining } from "@/components/gamification/AdjustmentsRemaining";
+import { MobileRoutineView } from "@/components/routine/mobile/MobileRoutineView";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -41,6 +39,7 @@ export default function Rotina() {
   const { executeRoutineAdjustment, checkCanAdjust } = useRoutineAdjustment();
   const { initializeDayChecklist } = useGamification();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [blocks, setBlocks] = useState<RoutineBlock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,10 +51,6 @@ export default function Rotina() {
     return startOfWeek(now, { weekStartsOn: 0 });
   });
   const [canAdjust, setCanAdjust] = useState(true);
-
-  // Touch swipe refs for mobile
-  const touchStartX = useRef<number | null>(null);
-  const touchEndX = useRef<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -191,56 +186,8 @@ export default function Rotina() {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
   };
 
-  // Mobile swipe handlers for day view
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    if (touchStartX.current === null || touchEndX.current === null) return;
-    
-    const diff = touchStartX.current - touchEndX.current;
-    const threshold = 50;
-
-    if (viewMode === "day") {
-      if (diff > threshold) {
-        // Swipe left - next day
-        setSelectedDay((prev) => (prev + 1) % 7);
-      } else if (diff < -threshold) {
-        // Swipe right - previous day
-        setSelectedDay((prev) => (prev - 1 + 7) % 7);
-      }
-    }
-
-    touchStartX.current = null;
-    touchEndX.current = null;
-  };
-
   const handleNextWeek = () => {
     setCurrentWeekStart((prev) => addWeeks(prev, 1));
-  };
-
-  const handleBlockFeedback = async (blockId: string, worked: boolean) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase.from("routine_feedback").insert({
-        block_id: blockId,
-        user_id: user.id,
-        worked,
-      });
-
-      if (error) throw error;
-
-      toast.success(worked ? "Ótimo! Vamos manter assim." : "Entendido! Vamos ajustar.");
-    } catch (error) {
-      console.error("Feedback error:", error);
-      toast.error("Erro ao salvar feedback");
-    }
   };
 
   if (authLoading || loading) {
@@ -296,76 +243,81 @@ export default function Rotina() {
         </div>
       </div>
 
-      {/* Main content - with touch handlers for swipe */}
-      <main 
-        className="container px-4 py-4 sm:py-6"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        {/* Gamification widgets - sidebar on desktop, horizontal scroll on mobile */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-          {/* Gamification sidebar - horizontal on mobile */}
-          <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="flex lg:flex-col gap-3 overflow-x-auto pb-2 lg:pb-0 lg:space-y-4 lg:overflow-visible">
-              <div className="min-w-[280px] lg:min-w-0">
-                <DailyChecklist blocks={blocks} />
-              </div>
-              <div className="min-w-[200px] lg:min-w-0">
-                <StreakDisplay />
-              </div>
-              <div className="min-w-[200px] lg:min-w-0">
-                <AdjustmentsRemaining />
-              </div>
-            </div>
+      {/* Main content */}
+      <main className="container px-4 py-4 sm:py-6">
+        {!routine ? (
+          <div className="text-center py-8 sm:py-12 space-y-4">
+            <p className="text-muted-foreground">
+              Você ainda não tem uma rotina para esta semana.
+            </p>
+            <Button 
+              variant="hero" 
+              onClick={handleRegenerate} 
+              disabled={regenerating || !canAdjust}
+              className="h-12 px-6"
+            >
+              {regenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Gerar rotina
+                </>
+              )}
+            </Button>
+            {!canAdjust && (
+              <p className="text-sm text-destructive">
+                Limite de ajustes atingido. Faça upgrade para Pro.
+              </p>
+            )}
           </div>
+        ) : (
+          <>
+            {/* Mobile View - New WOW Experience */}
+            {isMobile ? (
+              <div className="space-y-4">
+                {/* Regenerate button for mobile */}
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={handleRegenerate}
+                    disabled={regenerating || !canAdjust}
+                  >
+                    {regenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
 
-          {/* Main routine content */}
-          <div className="lg:col-span-3 order-1 lg:order-2">
-            {!routine ? (
-              <div className="text-center py-8 sm:py-12 space-y-4">
-                <p className="text-muted-foreground">
-                  Você ainda não tem uma rotina para esta semana.
-                </p>
-                <Button 
-                  variant="hero" 
-                  onClick={handleRegenerate} 
-                  disabled={regenerating || !canAdjust}
-                  className="h-12 px-6"
-                >
-                  {regenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Gerando...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Gerar rotina
-                    </>
-                  )}
-                </Button>
-                {!canAdjust && (
-                  <p className="text-sm text-destructive">
-                    Limite de ajustes atingido. Faça upgrade para Pro.
-                  </p>
-                )}
+                <MobileRoutineView
+                  blocks={blocks}
+                  selectedDay={selectedDay}
+                  onDayChange={setSelectedDay}
+                />
               </div>
             ) : (
-              <div className="space-y-4 sm:space-y-6">
-                {/* View toggle and actions - Mobile optimized */}
+              /* Desktop View - Keep existing layout */
+              <div className="space-y-6">
+                {/* View toggle and actions */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex gap-1 sm:gap-2">
+                  <div className="flex gap-2">
                     <Button
                       variant={viewMode === "week" ? "default" : "outline"}
-                      className="h-10 px-3 sm:px-4"
+                      className="h-10 px-4"
                       onClick={() => setViewMode("week")}
                     >
                       Semana
                     </Button>
                     <Button
                       variant={viewMode === "day" ? "default" : "outline"}
-                      className="h-10 px-3 sm:px-4"
+                      className="h-10 px-4"
                       onClick={() => setViewMode("day")}
                     >
                       Dia
@@ -374,7 +326,7 @@ export default function Rotina() {
 
                   <Button
                     variant="outline"
-                    className="h-10 px-3 sm:px-4"
+                    className="h-10 px-4"
                     onClick={handleRegenerate}
                     disabled={regenerating || !canAdjust}
                     title={!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina"}
@@ -384,38 +336,22 @@ export default function Rotina() {
                     ) : (
                       <RefreshCw className="w-4 h-4" />
                     )}
-                    <span className="ml-2 hidden sm:inline">Regenerar</span>
+                    <span className="ml-2">Regenerar</span>
                   </Button>
                 </div>
 
-                {/* Swipe hint on mobile day view */}
-                {viewMode === "day" && (
-                  <p className="text-xs text-muted-foreground text-center sm:hidden">
-                    Deslize para mudar de dia
-                  </p>
-                )}
-
                 {/* Routine view */}
-                {viewMode === "week" ? (
-                  <RoutineWeekView
-                    blocks={blocks}
-                    onBlockClick={(block) => {
-                      setSelectedDay(block.day_of_week);
-                      setViewMode("day");
-                    }}
-                  />
-                ) : (
-                  <RoutineDayView
-                    blocks={blocks.filter((b) => b.day_of_week === selectedDay)}
-                    selectedDay={selectedDay}
-                    onDayChange={setSelectedDay}
-                    onFeedback={handleBlockFeedback}
-                  />
-                )}
+                <RoutineWeekView
+                  blocks={blocks}
+                  onBlockClick={(block) => {
+                    setSelectedDay(block.day_of_week);
+                    setViewMode("day");
+                  }}
+                />
               </div>
             )}
-          </div>
-        </div>
+          </>
+        )}
       </main>
     </div>
   );
