@@ -1,65 +1,46 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, Clock, Brain } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function Hero() {
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 gradient-glow" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-focus/10 rounded-full blur-3xl animate-pulse-soft" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-rest/10 rounded-full blur-3xl animate-pulse-soft delay-500" />
+    <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden">
+      {/* Subtle background glow */}
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] opacity-50" />
       
       <div className="container relative z-10 px-4 py-20">
-        <div className="max-w-4xl mx-auto text-center space-y-8">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/80 border border-secondary-foreground/10 text-secondary-foreground text-sm font-medium animate-fade-in">
-            <Sparkles className="w-4 h-4" />
-            <span>Rotina personalizada com IA em minutos</span>
-          </div>
-
-          {/* Heading */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display font-bold leading-tight animate-slide-up">
-            Sua rotina ideal,{" "}
-            <span className="text-gradient">gerada automaticamente</span>
+        <div className="max-w-3xl mx-auto text-center space-y-8">
+          {/* Main headline - clear and direct */}
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold leading-[1.1] tracking-tight">
+            Organize sua rotina{" "}
+            <span className="text-primary">sem esforço</span>
+            <br className="hidden sm:block" />
+            — todos os dias.
           </h1>
 
-          {/* Subheading */}
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto animate-slide-up delay-100">
-            Responda 8 perguntas simples e deixe nossa IA criar uma semana 
-            perfeita para você. Ajustes automáticos conforme sua vida muda.
+          {/* Supporting text - one line */}
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto">
+            Uma rotina inteligente que se adapta à sua vida, não o contrário.
           </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-slide-up delay-200">
+          {/* Single CTA - prominent */}
+          <div className="pt-4">
             <Link to="/cadastro">
-              <Button variant="hero" size="xl">
-                Criar minha rotina automaticamente
-                <ArrowRight className="w-5 h-5" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button variant="hero-outline" size="xl">
-                Já tenho uma conta
+              <Button 
+                size="xl" 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-6 text-lg h-auto shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
+              >
+                Criar minha rotina agora
+                <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>
           </div>
 
-          {/* Trust indicators */}
-          <div className="flex flex-wrap items-center justify-center gap-8 pt-12 text-muted-foreground animate-fade-in delay-300">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-focus" />
-              <span className="text-sm">Menos de 3 minutos</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-personal" />
-              <span className="text-sm">IA adaptativa</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-rest" />
-              <span className="text-sm">100% personalizado</span>
-            </div>
-          </div>
+          {/* Trust indicator - minimal */}
+          <p className="text-sm text-muted-foreground/70 pt-2">
+            Gratuito • Sem cartão de crédito • 2 minutos para começar
+          </p>
         </div>
       </div>
     </section>
