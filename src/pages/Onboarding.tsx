@@ -129,9 +129,9 @@ export default function Onboarding() {
   const handleSubmit = async () => {
     if (!user) return;
 
-    // If re-onboarding, validate adjustment limit first
+    // If re-onboarding, validate generation limit first
     if (isReOnboarding && !canAdjust) {
-      toast.error("Você atingiu o limite de ajustes do seu plano. Faça upgrade para Pro.");
+      toast.error("Você atingiu o limite de gerações do seu plano. Faça upgrade para Pro.");
       navigate("/planos");
       return;
     }
@@ -202,11 +202,11 @@ export default function Onboarding() {
             return responseData;
           },
           undefined,
-          'Re-onboarding - Ajuste de rotina'
+          'Re-onboarding - Nova rotina'
         );
 
         if (result.success) {
-          toast.success("Rotina ajustada com sucesso!");
+          toast.success("Rotina gerada com sucesso!");
           navigate("/rotina");
         } else if (result.blocked) {
           navigate("/planos");

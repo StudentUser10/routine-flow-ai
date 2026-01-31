@@ -10,7 +10,7 @@ const plans = [
     description: "Para começar a organizar sua rotina",
     features: [
       "1 rotina semanal gerada",
-      "3 ajustes por semana",
+      "3 gerações por mês",
       "Alertas básicos",
       "Visualização semanal",
       "Feedback simples",
@@ -26,7 +26,7 @@ const plans = [
     description: "Para quem leva produtividade a sério",
     features: [
       "Rotinas ilimitadas",
-      "Ajustes ilimitados",
+      "Gerações ilimitadas",
       "IA adaptativa avançada",
       "Detecção de sobrecarga",
       "Modo semana caótica",

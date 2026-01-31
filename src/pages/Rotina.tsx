@@ -336,11 +336,6 @@ export default function Rotina() {
                     </>
                   )}
                 </Button>
-                {!canAdjust && (
-                  <p className="text-sm text-destructive">
-                    Limite de ajustes atingido. Faça upgrade para Pro.
-                  </p>
-                )}
               </>
             )}
           </div>
@@ -361,7 +356,7 @@ export default function Rotina() {
                     size="sm"
                     className="h-9"
                     onClick={generationLimitReached ? () => navigate("/planos") : handleRegenerate}
-                    disabled={regenerating || (!generationLimitReached && !canAdjust)}
+                    disabled={regenerating}
                   >
                     {regenerating ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -421,8 +416,8 @@ export default function Rotina() {
                       variant="outline"
                       className="h-10 px-4"
                       onClick={generationLimitReached ? () => navigate("/planos") : handleRegenerate}
-                      disabled={regenerating || (!generationLimitReached && !canAdjust)}
-                      title={generationLimitReached ? "Ver planos" : (!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina")}
+                      disabled={regenerating}
+                      title={generationLimitReached ? "Ver planos" : "Regenerar rotina"}
                     >
                       {regenerating ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

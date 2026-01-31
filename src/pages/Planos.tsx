@@ -124,7 +124,7 @@ export default function Planos() {
             Escolha seu plano
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Desbloqueie todo o potencial da sua rotina com ajustes ilimitados e IA adaptativa.
+            Desbloqueie todo o potencial da sua rotina com gerações ilimitadas e IA adaptativa.
           </p>
         </div>
 

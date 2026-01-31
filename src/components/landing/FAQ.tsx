@@ -11,8 +11,8 @@ const faqs = [
     answer: "Nossa IA analisa suas respostas sobre horários fixos, picos de energia, compromissos e objetivos. Com base nisso, ela distribui blocos de foco e descanso de forma otimizada, respeitando seus limites e prioridades.",
   },
   {
-    question: "Posso ajustar a rotina depois de gerada?",
-    answer: "Sim! No plano gratuito você tem 3 ajustes por semana. No plano Pro, ajustes são ilimitados. Cada ajuste manual ensina a IA sobre suas preferências reais.",
+    question: "Posso gerar uma nova rotina depois?",
+    answer: "Sim! No plano gratuito você pode gerar até 3 rotinas por mês. No plano Pro, as gerações são ilimitadas. Refaça o onboarding ou regenere quando sua vida mudar.",
   },
   {
     question: "O que acontece se minha semana for caótica?",
@@ -32,7 +32,7 @@ const faqs = [
   },
   {
     question: "Como funciona o feedback?",
-    answer: "Após cada dia, você pode marcar 'Funcionou' ou 'Não funcionou'. A IA usa esse feedback para ajustar automaticamente sua próxima rotina, aprendendo seus padrões reais.",
+    answer: "Após cada dia, você pode marcar 'Funcionou' ou 'Não funcionou'. A IA usa esse feedback para melhorar automaticamente sua próxima rotina, aprendendo seus padrões reais.",
   },
   {
     question: "Posso cancelar a qualquer momento?",
