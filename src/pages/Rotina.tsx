@@ -5,7 +5,7 @@ import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
 import { useGamification } from "@/hooks/useGamification";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, LogOut, Settings, RefreshCw, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, LogOut, Settings, RefreshCw, Loader2, ChevronLeft, ChevronRight, Home } from "lucide-react";
 import { toast } from "sonner";
 import { RoutineWeekView } from "@/components/routine/RoutineWeekView";
 import { RoutineDayView } from "@/components/routine/RoutineDayView";
@@ -268,6 +268,9 @@ export default function Rotina() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate("/dashboard")}>
+              <Home className="w-5 h-5" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate("/configuracoes")}>
               <Settings className="w-5 h-5" />
             </Button>
