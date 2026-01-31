@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGamification } from "@/hooks/useGamification";
-import { useAdjustments } from "@/hooks/useAdjustments";
+import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, LogOut, Sparkles, RotateCcw, Loader2, Crown, Settings } from "lucide-react";
@@ -28,11 +28,12 @@ export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const { plan, checkSubscription } = useSubscription();
   const { gamification } = useGamification();
-  const { canAdjust } = useAdjustments();
+  const { checkCanAdjust } = useRoutineAdjustment();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [canAdjust, setCanAdjust] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,6 +44,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       fetchProfile();
+      fetchAdjustmentStatus();
     }
   }, [user]);
 
@@ -56,6 +58,11 @@ export default function Dashboard() {
       navigate('/dashboard', { replace: true });
     }
   }, [searchParams, checkSubscription, navigate]);
+
+  const fetchAdjustmentStatus = async () => {
+    const status = await checkCanAdjust();
+    setCanAdjust(status?.canAdjust ?? true);
+  };
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -105,33 +112,32 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Mobile optimized */}
       <header className="border-b border-border bg-card">
-        <div className="container px-4 h-16 flex items-center justify-between">
+        <div className="container px-4 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center">
-              <CalendarDays className="w-5 h-5 text-primary-foreground" />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg gradient-hero flex items-center justify-center">
+              <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-xl">RotinAI</span>
+            <span className="font-display font-bold text-lg sm:text-xl">RotinAI</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <PlanBadge />
             <ThemeToggle />
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              Olá, {userName}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate("/configuracoes")}>
+              <Settings className="w-5 h-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleSignOut}>
+              <LogOut className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="container px-4 py-12">
-        <div className="max-w-2xl mx-auto text-center space-y-8">
+      <main className="container px-4 py-8 sm:py-12">
+        <div className="max-w-2xl mx-auto text-center space-y-6 sm:space-y-8">
           {profile?.onboarding_completed ? (
             <>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary text-secondary-foreground text-sm font-medium">

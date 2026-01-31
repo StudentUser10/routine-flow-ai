@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdjustments } from "@/hooks/useAdjustments";
+import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -39,12 +39,13 @@ const TOTAL_QUESTIONS = 8;
 
 export default function Onboarding() {
   const { user, loading: authLoading } = useAuth();
-  const { canAdjust, validateAndExecute, checkAdjustments } = useAdjustments();
+  const { executeRoutineAdjustment, checkCanAdjust } = useRoutineAdjustment();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isReOnboarding, setIsReOnboarding] = useState(false);
+  const [canAdjust, setCanAdjust] = useState(true);
   
   const [data, setData] = useState<OnboardingData>({
     wakeTime: "07:00",
@@ -79,12 +80,13 @@ export default function Onboarding() {
       if (profile?.onboarding_completed) {
         setIsReOnboarding(true);
         // Check if user can make adjustment
-        await checkAdjustments();
+        const status = await checkCanAdjust();
+        setCanAdjust(status?.canAdjust ?? true);
       }
     };
     
     checkReOnboarding();
-  }, [user, checkAdjustments]);
+  }, [user, checkCanAdjust]);
 
   const updateData = (field: keyof OnboardingData, value: any) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -130,7 +132,6 @@ export default function Onboarding() {
 
     try {
       // Save questionnaire responses
-      // Note: Using type assertion for new columns not yet in generated types
       const questionnaireData = {
         user_id: user.id,
         wake_time: data.wakeTime,
@@ -156,14 +157,15 @@ export default function Onboarding() {
         return;
       }
 
-      // If re-onboarding, register this as an adjustment using validateAndExecute
+      // If re-onboarding, use the centralized adjustment layer
       if (isReOnboarding) {
-        const result = await validateAndExecute(
+        toast.success("Respostas salvas! Gerando sua rotina...");
+        setIsGenerating(true);
+
+        // CAMADA ÚNICA DE AJUSTE - REGRA ABSOLUTA
+        const result = await executeRoutineAdjustment(
           're_onboarding',
           async () => {
-            toast.success("Respostas salvas! Gerando sua rotina...");
-            setIsGenerating(true);
-
             const { data: session } = await supabase.auth.getSession();
             
             const response = await fetch(
@@ -192,6 +194,8 @@ export default function Onboarding() {
         if (result.success) {
           toast.success("Rotina ajustada com sucesso!");
           navigate("/rotina");
+        } else if (result.blocked) {
+          navigate("/planos");
         }
       } else {
         // First onboarding - no adjustment needed
