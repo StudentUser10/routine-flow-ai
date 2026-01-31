@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdjustments } from "@/hooks/useAdjustments";
+import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
 import { useGamification } from "@/hooks/useGamification";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { StreakDisplay } from "@/components/gamification/StreakDisplay";
 import { AdjustmentsRemaining } from "@/components/gamification/AdjustmentsRemaining";
 import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
 export interface RoutineBlock {
   id: string;
   routine_id: string;
@@ -37,7 +38,7 @@ export interface Routine {
 
 export default function Rotina() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { canAdjust, validateAndExecute, status: adjustmentStatus } = useAdjustments();
+  const { executeRoutineAdjustment, checkCanAdjust } = useRoutineAdjustment();
   const { initializeDayChecklist } = useGamification();
   const navigate = useNavigate();
   const [routine, setRoutine] = useState<Routine | null>(null);
@@ -50,6 +51,11 @@ export default function Rotina() {
     const now = new Date();
     return startOfWeek(now, { weekStartsOn: 0 });
   });
+  const [canAdjust, setCanAdjust] = useState(true);
+
+  // Touch swipe refs for mobile
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -60,8 +66,14 @@ export default function Rotina() {
   useEffect(() => {
     if (user) {
       fetchRoutine();
+      checkAdjustmentStatus();
     }
   }, [user, currentWeekStart]);
+
+  const checkAdjustmentStatus = async () => {
+    const status = await checkCanAdjust();
+    setCanAdjust(status?.canAdjust ?? true);
+  };
 
   const fetchRoutine = async () => {
     if (!user) return;
@@ -130,8 +142,10 @@ export default function Rotina() {
   };
 
   const handleRegenerate = async () => {
-    // Validate adjustment before proceeding
-    const result = await validateAndExecute(
+    setRegenerating(true);
+    
+    // CAMADA ÚNICA DE AJUSTE - REGRA ABSOLUTA
+    const result = await executeRoutineAdjustment(
       'regenerate',
       async () => {
         const { data: session } = await supabase.auth.getSession();
@@ -159,9 +173,12 @@ export default function Rotina() {
       'Regeneração de rotina'
     );
 
+    setRegenerating(false);
+
     if (result.success) {
       toast.success("Rotina regenerada com sucesso!");
       await fetchRoutine();
+      await checkAdjustmentStatus();
     }
   };
 
@@ -172,6 +189,35 @@ export default function Rotina() {
 
   const handlePreviousWeek = () => {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
+  };
+
+  // Mobile swipe handlers for day view
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    
+    const diff = touchStartX.current - touchEndX.current;
+    const threshold = 50;
+
+    if (viewMode === "day") {
+      if (diff > threshold) {
+        // Swipe left - next day
+        setSelectedDay((prev) => (prev + 1) % 7);
+      } else if (diff < -threshold) {
+        // Swipe right - previous day
+        setSelectedDay((prev) => (prev - 1 + 7) % 7);
+      }
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
   };
 
   const handleNextWeek = () => {
@@ -211,57 +257,70 @@ export default function Rotina() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Mobile optimized */}
       <header className="border-b border-border bg-card sticky top-0 z-10">
-        <div className="container px-4 h-16 flex items-center justify-between">
+        <div className="container px-4 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center">
-              <CalendarDays className="w-5 h-5 text-primary-foreground" />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg gradient-hero flex items-center justify-center">
+              <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-xl">RotinAI</span>
+            <span className="font-display font-bold text-lg sm:text-xl">RotinAI</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-              <Settings className="w-4 h-4" />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate("/configuracoes")}>
+              <Settings className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4" />
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleSignOut}>
+              <LogOut className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Week navigation */}
+      {/* Week navigation - Mobile optimized */}
       <div className="border-b border-border bg-card">
-        <div className="container px-4 py-3 flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={handlePreviousWeek}>
+        <div className="container px-4 py-2 sm:py-3 flex items-center justify-between">
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handlePreviousWeek}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
           
-          <h2 className="font-display font-semibold capitalize">{weekLabel}</h2>
+          <h2 className="font-display font-semibold capitalize text-sm sm:text-base">{weekLabel}</h2>
           
-          <Button variant="ghost" size="icon" onClick={handleNextWeek}>
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleNextWeek}>
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="container px-4 py-6">
-        {/* Gamification widgets - sidebar on desktop, top on mobile */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Gamification sidebar */}
-          <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
-            <DailyChecklist blocks={blocks} />
-            <StreakDisplay />
-            <AdjustmentsRemaining />
+      {/* Main content - with touch handlers for swipe */}
+      <main 
+        className="container px-4 py-4 sm:py-6"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Gamification widgets - sidebar on desktop, horizontal scroll on mobile */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+          {/* Gamification sidebar - horizontal on mobile */}
+          <div className="lg:col-span-1 order-2 lg:order-1">
+            <div className="flex lg:flex-col gap-3 overflow-x-auto pb-2 lg:pb-0 lg:space-y-4 lg:overflow-visible">
+              <div className="min-w-[280px] lg:min-w-0">
+                <DailyChecklist blocks={blocks} />
+              </div>
+              <div className="min-w-[200px] lg:min-w-0">
+                <StreakDisplay />
+              </div>
+              <div className="min-w-[200px] lg:min-w-0">
+                <AdjustmentsRemaining />
+              </div>
+            </div>
           </div>
 
           {/* Main routine content */}
           <div className="lg:col-span-3 order-1 lg:order-2">
             {!routine ? (
-              <div className="text-center py-12 space-y-4">
+              <div className="text-center py-8 sm:py-12 space-y-4">
                 <p className="text-muted-foreground">
                   Você ainda não tem uma rotina para esta semana.
                 </p>
@@ -269,6 +328,7 @@ export default function Rotina() {
                   variant="hero" 
                   onClick={handleRegenerate} 
                   disabled={regenerating || !canAdjust}
+                  className="h-12 px-6"
                 >
                   {regenerating ? (
                     <>
@@ -289,20 +349,20 @@ export default function Rotina() {
                 )}
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* View toggle and actions */}
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
+              <div className="space-y-4 sm:space-y-6">
+                {/* View toggle and actions - Mobile optimized */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex gap-1 sm:gap-2">
                     <Button
                       variant={viewMode === "week" ? "default" : "outline"}
-                      size="sm"
+                      className="h-10 px-3 sm:px-4"
                       onClick={() => setViewMode("week")}
                     >
                       Semana
                     </Button>
                     <Button
                       variant={viewMode === "day" ? "default" : "outline"}
-                      size="sm"
+                      className="h-10 px-3 sm:px-4"
                       onClick={() => setViewMode("day")}
                     >
                       Dia
@@ -311,7 +371,7 @@ export default function Rotina() {
 
                   <Button
                     variant="outline"
-                    size="sm"
+                    className="h-10 px-3 sm:px-4"
                     onClick={handleRegenerate}
                     disabled={regenerating || !canAdjust}
                     title={!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina"}
@@ -324,6 +384,13 @@ export default function Rotina() {
                     <span className="ml-2 hidden sm:inline">Regenerar</span>
                   </Button>
                 </div>
+
+                {/* Swipe hint on mobile day view */}
+                {viewMode === "day" && (
+                  <p className="text-xs text-muted-foreground text-center sm:hidden">
+                    Deslize para mudar de dia
+                  </p>
+                )}
 
                 {/* Routine view */}
                 {viewMode === "week" ? (

@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.validate-adjustment]
 verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = false
