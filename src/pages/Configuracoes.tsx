@@ -266,8 +266,8 @@ export default function Configuracoes() {
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {plan === "free"
-                    ? "3 ajustes por mês"
-                    : "Ajustes ilimitados"}
+                    ? "3 gerações de rotina por mês"
+                    : "Gerações ilimitadas"}
                 </p>
               </div>
             </div>
