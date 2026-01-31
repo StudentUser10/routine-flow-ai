@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useGamification } from "@/hooks/useGamification";
 import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
+import { useGenerationLimit } from "@/hooks/useGenerationLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, LogOut, Sparkles, RotateCcw, Loader2, Crown, Settings } from "lucide-react";
@@ -29,6 +30,7 @@ export default function Dashboard() {
   const { plan, checkSubscription } = useSubscription();
   const { gamification } = useGamification();
   const { checkCanAdjust } = useRoutineAdjustment();
+  const { canGenerate, plan: generationPlan } = useGenerationLimit();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -166,7 +168,14 @@ export default function Dashboard() {
                 <Button 
                   variant="outline" 
                   size="lg" 
-                  onClick={() => navigate("/onboarding")}
+                  onClick={() => {
+                    if (generationPlan === 'free' && !canGenerate) {
+                      toast.error('Você atingiu o limite de gerações gratuitas. Faça upgrade para ajustar sua rotina.');
+                      navigate("/planos");
+                    } else {
+                      navigate("/onboarding");
+                    }
+                  }}
                   className="gap-2"
                 >
                   <RotateCcw className="w-5 h-5" />
