@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { formatLocalDateKey } from '@/lib/date';
 
 export type BlockStatusType = 'pending' | 'completed' | 'skipped';
 
@@ -67,7 +68,8 @@ export function useGamification() {
   const [dailyProgress, setDailyProgress] = useState<DailyProgress | null>(null);
   const [gamification, setGamification] = useState<UserGamification | null>(null);
 
-  const today = format(new Date(), 'yyyy-MM-dd');
+  // IMPORTANT: always a LOCAL date key (YYYY-MM-DD), never UTC.
+  const today = formatLocalDateKey(new Date());
 
   const fetchGamificationData = useCallback(async () => {
     if (!user) return;
@@ -154,17 +156,15 @@ export function useGamification() {
     }
   }, [user, fetchGamificationData]);
 
-  const initializeDayChecklist = useCallback(async (blocks: { id: string; day_of_week: number }[]) => {
+  // Creates pending status entries ONLY for today's blocks (caller must guarantee today context).
+  const initializeDayChecklist = useCallback(async (blocks: { id: string }[]) => {
     if (!user) return;
 
-    const todayDayOfWeek = new Date().getDay();
-    const todaysBlocks = blocks.filter(b => b.day_of_week === todayDayOfWeek);
-
-    if (todaysBlocks.length === 0) return;
+    if (blocks.length === 0) return;
 
     // Check which blocks already have status for today
     const existingBlockIds = blockStatuses.map(s => s.block_id);
-    const newBlocks = todaysBlocks.filter(b => !existingBlockIds.includes(b.id));
+    const newBlocks = blocks.filter(b => !existingBlockIds.includes(b.id));
 
     if (newBlocks.length === 0) return;
 
@@ -190,35 +190,36 @@ export function useGamification() {
   // ============================================
   // REGRA TEMPORAL: VERIFICAR SE BLOCO É DO DIA ATUAL
   // ============================================
-  const isBlockFromToday = useCallback((blockDayOfWeek: number): boolean => {
-    const todayDayOfWeek = new Date().getDay();
-    return blockDayOfWeek === todayDayOfWeek;
-  }, []);
+  const isBlockFromToday = useCallback((blockDateKey: string): boolean => {
+    return blockDateKey === today;
+  }, [today]);
 
   // ============================================
   // REGRA TEMPORAL: VERIFICAR SE PODE CONCLUIR BLOCO
   // ============================================
-  const canCompleteBlock = useCallback((blockDayOfWeek: number): { allowed: boolean; message?: string } => {
-    if (!isBlockFromToday(blockDayOfWeek)) {
+  const canCompleteBlock = useCallback((blockDateKey: string): { allowed: boolean; message?: string } => {
+    if (!isBlockFromToday(blockDateKey)) {
       return { allowed: false, message: TEMPORAL_BLOCK_MESSAGE };
     }
     return { allowed: true };
   }, [isBlockFromToday]);
 
-  const updateBlockStatus = useCallback(async (blockId: string, status: BlockStatusType, blockDayOfWeek?: number) => {
+  const updateBlockStatus = useCallback(async (blockId: string, status: BlockStatusType, blockDateKey: string) => {
     if (!user) return false;
 
     // ============================================
     // REGRA TEMPORAL: BLOQUEAR CONCLUSÃO FORA DO DIA ATUAL
     // ============================================
-    // Se blockDayOfWeek foi fornecido, verificar a regra temporal
-    if (blockDayOfWeek !== undefined && (status === 'completed' || status === 'skipped')) {
-      const { allowed, message } = canCompleteBlock(blockDayOfWeek);
-      if (!allowed) {
-        toast.error(message);
-        console.log('[GAMIFICATION] Temporal block: attempted to complete block from different day');
-        return false;
-      }
+    // REGRA ABSOLUTA: toda interação deve validar DATA COMPLETA (YYYY-MM-DD)
+    const { allowed, message } = canCompleteBlock(blockDateKey);
+    if (!allowed) {
+      toast.error(message);
+      console.log('[GAMIFICATION] Temporal block: attempted interaction outside today', {
+        blockDateKey,
+        today,
+        status,
+      });
+      return false;
     }
 
     try {
