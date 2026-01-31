@@ -255,7 +255,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
-          routine_id: string
+          routine_id: string | null
           source: string
           user_id: string
         }
@@ -264,7 +264,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
-          routine_id: string
+          routine_id?: string | null
           source: string
           user_id: string
         }
@@ -273,7 +273,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
-          routine_id?: string
+          routine_id?: string | null
           source?: string
           user_id?: string
         }
