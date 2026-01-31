@@ -21,6 +21,7 @@ interface HeroCardProps {
   selectedDay: number;
   onCompleteBlock: (blockId: string) => void;
   getBlockStatus: (blockId: string) => string;
+  isToday?: boolean;
 }
 
 const BLOCK_GRADIENTS = {
@@ -37,10 +38,14 @@ const BLOCK_LABELS = {
   fixed: "Fixo",
 };
 
-export function HeroCard({ blocks, selectedDay, onCompleteBlock, getBlockStatus }: HeroCardProps) {
+export function HeroCard({ blocks, selectedDay, onCompleteBlock, getBlockStatus, isToday: isTodayProp }: HeroCardProps) {
   const now = new Date();
   const currentTime = format(now, "HH:mm");
-  const isToday = selectedDay === now.getDay();
+  // Use prop if provided, otherwise calculate internally
+  const isToday = isTodayProp ?? selectedDay === now.getDay();
+  
+  // REGRA TEMPORAL: Bloquear interação fora do dia atual
+  const canInteract = isToday;
 
   // Find current or next block
   const heroBlock = useMemo(() => {
@@ -169,10 +174,10 @@ export function HeroCard({ blocks, selectedDay, onCompleteBlock, getBlockStatus 
         {!block.is_fixed && status !== "finished" && (
           <Button
             onClick={() => onCompleteBlock(block.id)}
-            disabled={isCompleted}
+            disabled={isCompleted || !canInteract}
             className={cn(
               "w-full h-12 text-base font-semibold transition-all",
-              isCompleted 
+              (isCompleted || !canInteract)
                 ? "bg-white/30 text-white/80 cursor-not-allowed"
                 : "bg-white text-foreground hover:bg-white/90 hover:scale-[1.02] active:scale-[0.98]"
             )}
@@ -182,6 +187,8 @@ export function HeroCard({ blocks, selectedDay, onCompleteBlock, getBlockStatus 
                 <CheckCircle2 className="w-5 h-5 mr-2" />
                 Concluído
               </>
+            ) : !canInteract ? (
+              "Só hoje"
             ) : (
               "Concluir bloco"
             )}

@@ -7,6 +7,7 @@ import { FullRoutineSheet } from "./FullRoutineSheet";
 import { Confetti } from "./Confetti";
 import { useGamification, BlockStatusType } from "@/hooks/useGamification";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Block {
   id: string;
@@ -29,6 +30,9 @@ interface MobileRoutineViewProps {
 
 const SHORT_DAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
+// REGRA TEMPORAL: Mensagem padrão
+const TEMPORAL_BLOCK_MESSAGE = "Você só pode concluir blocos do dia atual.";
+
 export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRoutineViewProps) {
   const { 
     dailyProgress, 
@@ -36,6 +40,7 @@ export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRo
     initializeDayChecklist, 
     updateBlockStatus, 
     getBlockStatus,
+    isBlockFromToday,
     loading 
   } = useGamification();
 
@@ -51,6 +56,9 @@ export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRo
   const todayDayOfWeek = new Date().getDay();
   const todaysBlocks = blocks.filter(b => b.day_of_week === todayDayOfWeek);
   const selectedDayBlocks = blocks.filter(b => b.day_of_week === selectedDay);
+
+  // REGRA TEMPORAL: Verificar se o dia selecionado é hoje
+  const isSelectedDayToday = selectedDay === todayDayOfWeek;
 
   // Initialize checklist for today
   useEffect(() => {
@@ -73,22 +81,35 @@ export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRo
     setPrevCompleted(completed);
   }, [completed, total, prevCompleted]);
 
-  // Handle status change with haptic feedback
-  const handleStatusChange = useCallback(async (blockId: string, newStatus: BlockStatusType) => {
+  // Handle status change with haptic feedback and temporal validation
+  const handleStatusChange = useCallback(async (blockId: string, newStatus: BlockStatusType, dayOfWeek: number) => {
+    // REGRA TEMPORAL: Bloquear conclusão fora do dia atual
+    if (!isBlockFromToday(dayOfWeek)) {
+      toast.error(TEMPORAL_BLOCK_MESSAGE);
+      return;
+    }
+
     // Haptic feedback
     if (navigator.vibrate && newStatus === "completed") {
       navigator.vibrate(30);
     }
-    await updateBlockStatus(blockId, newStatus);
-  }, [updateBlockStatus]);
+    await updateBlockStatus(blockId, newStatus, dayOfWeek);
+  }, [updateBlockStatus, isBlockFromToday]);
 
   // Handle complete from hero card
-  const handleCompleteBlock = useCallback(async (blockId: string) => {
+  const handleCompleteBlock = useCallback(async (blockId: string, dayOfWeek?: number) => {
+    // REGRA TEMPORAL: Bloquear conclusão fora do dia atual
+    const blockDay = dayOfWeek ?? selectedDay;
+    if (!isBlockFromToday(blockDay)) {
+      toast.error(TEMPORAL_BLOCK_MESSAGE);
+      return;
+    }
+
     if (navigator.vibrate) {
       navigator.vibrate([30, 20, 50]);
     }
-    await updateBlockStatus(blockId, "completed");
-  }, [updateBlockStatus]);
+    await updateBlockStatus(blockId, "completed", blockDay);
+  }, [updateBlockStatus, selectedDay, isBlockFromToday]);
 
   // Swipe handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -156,20 +177,22 @@ export function MobileRoutineView({ blocks, selectedDay, onDayChange }: MobileRo
       <HeroCard 
         blocks={selectedDayBlocks}
         selectedDay={selectedDay}
-        onCompleteBlock={handleCompleteBlock}
+        onCompleteBlock={(blockId) => handleCompleteBlock(blockId, selectedDay)}
         getBlockStatus={getBlockStatus}
+        isToday={isSelectedDayToday}
       />
 
-      {/* 2. CHECKLIST DO DIA - Only show for today */}
-      {selectedDay === todayDayOfWeek && todaysBlocks.length > 0 && (
+      {/* 2. CHECKLIST DO DIA - Show for selected day with temporal rules */}
+      {selectedDayBlocks.length > 0 && (
         <MobileDailyChecklist
-          blocks={todaysBlocks}
+          blocks={selectedDayBlocks}
           streak={streak}
-          progress={progress}
-          completed={completed}
-          total={total}
+          progress={isSelectedDayToday ? progress : 0}
+          completed={isSelectedDayToday ? completed : 0}
+          total={isSelectedDayToday ? total : selectedDayBlocks.length}
           getBlockStatus={getBlockStatus}
           onStatusChange={handleStatusChange}
+          isToday={isSelectedDayToday}
         />
       )}
 

@@ -26,7 +26,11 @@ const CLIENT_ERRORS = {
   INTERNAL_ERROR: "Erro ao gerar rotina",
   MISSING_WEEK_START: "week_start é obrigatório no formato yyyy-MM-dd",
   INVALID_WEEK_START: "week_start deve estar no formato yyyy-MM-dd",
+  GENERATION_LIMIT_REACHED: "Você atingiu o limite de gerações gratuitas deste mês. Faça upgrade para gerar novas rotinas.",
 } as const;
+
+// Free plan limit: 3 generations per month
+const FREE_PLAN_MONTHLY_LIMIT = 3;
 
 // Validate date format yyyy-MM-dd
 const isValidDateFormat = (dateStr: string): boolean => {
@@ -34,6 +38,12 @@ const isValidDateFormat = (dateStr: string): boolean => {
   if (!regex.test(dateStr)) return false;
   const date = new Date(dateStr);
   return !isNaN(date.getTime());
+};
+
+// Get first day of current month
+const getFirstDayOfMonth = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 };
 
 serve(async (req) => {
@@ -97,6 +107,65 @@ serve(async (req) => {
     }
 
     console.log("[GENERATE-ROUTINE] User authenticated:", user.id);
+
+    // ============================================
+    // REGRA: VERIFICAR LIMITE DE GERAÇÃO (PLANO FREE)
+    // ============================================
+    
+    // Fetch user's plan from profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("plan")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("[GENERATE-ROUTINE] Profile fetch error:", profileError.message);
+    }
+
+    const userPlan = profile?.plan || 'free';
+    console.log("[GENERATE-ROUTINE] User plan:", userPlan);
+
+    // Only check limits for free plan
+    if (userPlan === 'free') {
+      const firstDayOfMonth = getFirstDayOfMonth();
+      
+      // Count generations this month
+      const { count, error: countError } = await supabase
+        .from("routine_generations")
+        .select("*", { count: 'exact', head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", firstDayOfMonth);
+
+      if (countError) {
+        console.error("[GENERATE-ROUTINE] Generation count error:", countError.message);
+      }
+
+      const generationsThisMonth = count || 0;
+      console.log("[GENERATE-ROUTINE] Generations this month:", generationsThisMonth);
+
+      // Check if this week was already generated (allow re-generation for same week)
+      const { data: existingGeneration } = await supabase
+        .from("routine_generations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("week_start", weekStartStr)
+        .maybeSingle();
+
+      // If limit reached and this is a NEW week (not re-generating same week)
+      if (generationsThisMonth >= FREE_PLAN_MONTHLY_LIMIT && !existingGeneration) {
+        console.log("[GENERATE-ROUTINE] FREE plan limit reached:", generationsThisMonth, ">=", FREE_PLAN_MONTHLY_LIMIT);
+        return new Response(JSON.stringify({ 
+          error: CLIENT_ERRORS.GENERATION_LIMIT_REACHED,
+          upgrade_required: true,
+          generations_used: generationsThisMonth,
+          generations_limit: FREE_PLAN_MONTHLY_LIMIT
+        }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // Get questionnaire data
     const { data: questionnaire, error: questError } = await supabase
@@ -395,6 +464,25 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ============================================
+    // REGISTRAR GERAÇÃO NA TABELA routine_generations
+    // ============================================
+    // Use upsert to handle re-generations for same week
+    const { error: genInsertError } = await supabase
+      .from("routine_generations")
+      .upsert({
+        user_id: user.id,
+        week_start: weekStartStr,
+        created_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,week_start'
+      });
+
+    if (genInsertError) {
+      console.error("[GENERATE-ROUTINE] Generation tracking error:", genInsertError.message);
+      // Don't fail the whole operation for tracking error
     }
 
     // Update profile to mark onboarding as completed
