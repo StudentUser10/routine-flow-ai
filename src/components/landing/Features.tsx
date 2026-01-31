@@ -26,8 +26,8 @@ const features = [
   },
   {
     icon: RefreshCw,
-    title: "Ajustes Adaptativos",
-    description: "Diga se funcionou ou não. A IA aprende e ajusta automaticamente sua rotina.",
+    title: "Aprendizado Contínuo",
+    description: "Diga se funcionou ou não. A IA aprende e melhora automaticamente sua rotina.",
     color: "text-rest",
     bg: "bg-rest/10",
   },

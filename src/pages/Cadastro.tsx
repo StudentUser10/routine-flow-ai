@@ -10,7 +10,7 @@ import { toast } from "sonner";
 const benefits = [
   "Rotina semanal personalizada em minutos",
   "IA que aprende com seu feedback",
-  "Ajustes automáticos conforme sua vida muda",
+  "Regenere sua rotina quando precisar",
   "Alertas inteligentes para nunca perder um bloco",
 ];
 

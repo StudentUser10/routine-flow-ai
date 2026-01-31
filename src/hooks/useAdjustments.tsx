@@ -75,12 +75,12 @@ export function useAdjustments() {
 
       if (error) {
         console.error('Register adjustment error:', error);
-        toast.error('Erro ao registrar ajuste');
+        toast.error('Erro ao registrar geração');
         return { success: false, message: 'Erro interno' };
       }
 
       if (!data.success) {
-        toast.error(data.error || 'Limite de ajustes atingido');
+        toast.error(data.error || 'Limite de gerações atingido');
         return { success: false, message: data.error };
       }
 
@@ -97,7 +97,7 @@ export function useAdjustments() {
       return { success: true, message: data.message };
     } catch (err) {
       console.error('Failed to register adjustment:', err);
-      toast.error('Erro ao registrar ajuste');
+      toast.error('Erro ao registrar geração');
       return { success: false, message: 'Erro interno' };
     }
   }, [session?.access_token, status?.plan]);
@@ -112,10 +112,10 @@ export function useAdjustments() {
     const currentStatus = await checkAdjustments();
 
     if (!currentStatus?.canAdjust) {
-      toast.error('Você atingiu o limite de ajustes do seu plano. Faça upgrade para Pro.');
+      toast.error('Você atingiu o limite de gerações do seu plano. Faça upgrade para Pro.');
       return { 
         success: false, 
-        message: 'Limite de ajustes atingido' 
+        message: 'Limite de gerações atingido' 
       };
     }
 

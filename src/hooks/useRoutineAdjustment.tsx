@@ -68,17 +68,17 @@ export function useRoutineAdjustment() {
 
       if (checkError) {
         console.error('[ADJUSTMENT] Erro na verificação:', checkError);
-        toast.error('Erro ao verificar permissão de ajuste');
+        toast.error('Erro ao verificar permissão');
         return { success: false, message: 'Erro na verificação' };
       }
 
       // PASSO 2: Se bloqueado, abortar ANTES de executar qualquer ação
       if (!checkData?.canAdjust) {
         console.log('[ADJUSTMENT] Bloqueado - limite atingido');
-        toast.error('Você atingiu o limite de ajustes do seu plano. Faça upgrade para Pro.');
+        toast.error('Você atingiu o limite de gerações do seu plano. Faça upgrade para Pro.');
         return { 
           success: false, 
-          message: 'Limite de ajustes atingido',
+          message: 'Limite de gerações atingido',
           blocked: true 
         };
       }
@@ -93,7 +93,7 @@ export function useRoutineAdjustment() {
         result = await action();
       } catch (actionError) {
         console.error('[ADJUSTMENT] Erro na execução da ação:', actionError);
-        toast.error('Erro ao executar ajuste');
+        toast.error('Erro ao gerar rotina');
         return { 
           success: false, 
           message: actionError instanceof Error ? actionError.message : 'Erro na execução' 
@@ -108,7 +108,7 @@ export function useRoutineAdjustment() {
           action: 'register',
           source,
           routine_id: routineId,
-          description: description || `Ajuste ${source}`,
+          description: description || `Geração ${source}`,
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -135,8 +135,8 @@ export function useRoutineAdjustment() {
         });
 
         // Mesmo com falha no registro, a ação foi executada
-        toast.warning('Ajuste aplicado, mas houve um problema no registro. Entre em contato se o limite parecer incorreto.');
-        return { success: true, result, message: 'Ajuste aplicado (registro parcial)' };
+        toast.warning('Rotina gerada, mas houve um problema no registro. Entre em contato se o limite parecer incorreto.');
+        return { success: true, result, message: 'Rotina gerada (registro parcial)' };
       }
 
       console.log('[ADJUSTMENT] Ajuste registrado com sucesso', {
