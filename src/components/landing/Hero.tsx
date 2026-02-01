@@ -16,7 +16,7 @@ export function Hero() {
             Sua semana organizada{" "}
             <span className="text-primary">automaticamente</span>
             <br className="hidden sm:block" />
-            em 2 minutos.
+            {" "}em 2 minutos.
           </h1>
 
           {/* Supporting text - one line */}
