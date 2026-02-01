@@ -118,14 +118,19 @@ serve(async (req) => {
 
     const hasActiveSub = subscriptions.data.length > 0;
     let plan: "free" | "pro" | "annual" = "free";
-    let subscriptionEnd = null;
+    let subscriptionEnd: string | null = null;
 
     if (hasActiveSub) {
       const subscription = subscriptions.data[0];
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      const productId = subscription.items.data[0].price.product as string;
+      
+      // Safely parse subscription end date
+      if (subscription.current_period_end && typeof subscription.current_period_end === 'number') {
+        subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
+      }
+      
+      const productId = subscription.items.data[0]?.price?.product as string;
       plan = PRODUCT_TO_PLAN[productId] || "pro";
-      logStep("Active subscription found", { plan });
+      logStep("Active subscription found", { plan, subscriptionEnd });
     } else {
       logStep("No active subscription found");
     }
