@@ -14,8 +14,8 @@ const logStep = (step: string, details?: any) => {
 
 // Stripe product IDs mapped to plans (LIVE MODE)
 const PRODUCT_TO_PLAN: Record<string, "pro" | "annual"> = {
-  "prod_TttIzE8ramRMDE": "pro",    // Pro Mensal (live)
-  "prod_TttIqUbF2E5AcN": "annual", // Pro Anual (live)
+  "prod_TttLuCxLeuKFMV": "pro",    // Pro Mensal (live)
+  "prod_TttMpyUZbuz4jY": "annual", // Pro Anual (live)
 };
 
 // Generic error messages for clients (no internal details exposed)

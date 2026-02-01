@@ -9,8 +9,8 @@ const corsHeaders = {
 
 // Valid Stripe price IDs - only these are allowed (LIVE MODE)
 const VALID_PRICE_IDS = [
-  "price_1Sw5VXEvgf99HIdqCQYaaSl3", // Pro Mensal (live)
-  "price_1Sw5W0Evgf99HIdqG8adw2aR", // Pro Anual (live)
+  "price_1Sw5ZFEvgf99HIdq9QLLd5WK", // Pro Mensal (live)
+  "price_1Sw5ZbEvgf99HIdqSHu2MHsv", // Pro Anual (live)
 ] as const;
 
 const logStep = (step: string, details?: any) => {
