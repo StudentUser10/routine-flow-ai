@@ -20,10 +20,10 @@ interface SubscriptionContextType {
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-// Stripe price IDs
+// Stripe price IDs (TEST MODE)
 export const STRIPE_PRICES = {
-  pro_monthly: "price_1SuxadEvgf99HIdqAdmSo2NC",
-  pro_annual: "price_1SuxazEvgf99HIdqFJu3UNqf",
+  pro_monthly: "price_1Sw4QrEvgf99HIdqrchZLkUi",
+  pro_annual: "price_1Sw4S3Evgf99HIdqZ7KxcY0r",
 } as const;
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
