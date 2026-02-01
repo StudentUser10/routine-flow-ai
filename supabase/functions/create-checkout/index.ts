@@ -7,10 +7,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Valid Stripe price IDs - only these are allowed (TEST MODE)
+// Valid Stripe price IDs - only these are allowed (LIVE MODE)
 const VALID_PRICE_IDS = [
-  "price_1Sw4QrEvgf99HIdqrchZLkUi", // Pro Mensal (test)
-  "price_1Sw4S3Evgf99HIdqZ7KxcY0r", // Pro Anual (test)
+  "price_1Sw5VXEvgf99HIdqCQYaaSl3", // Pro Mensal (live)
+  "price_1Sw5W0Evgf99HIdqG8adw2aR", // Pro Anual (live)
 ] as const;
 
 const logStep = (step: string, details?: any) => {
