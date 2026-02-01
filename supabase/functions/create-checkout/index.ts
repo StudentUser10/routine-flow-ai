@@ -32,11 +32,49 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } }
   );
 
   try {
     logStep("Function started");
+
+    // Validate authorization first
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      logStep("ERROR: Missing authorization header");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    
+    // Use getClaims for JWT validation (doesn't require user to exist in DB)
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      logStep("ERROR: Auth failed", { error: claimsError?.message });
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const claims = claimsData.claims;
+    const userId = claims.sub as string;
+    const userEmail = claims.email as string;
+    
+    if (!userEmail) {
+      logStep("ERROR: No email in claims");
+      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    
+    logStep("User authenticated", { userId });
 
     // Parse and validate request body
     let body: unknown;
@@ -72,35 +110,11 @@ serve(async (req) => {
 
     logStep("Price ID validated", { priceId });
 
-    // Validate authorization
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      logStep("ERROR: Missing authorization header");
-      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data, error: authError } = await supabaseClient.auth.getUser(token);
-    
-    if (authError || !data.user?.email) {
-      logStep("ERROR: Auth failed", { error: authError?.message });
-      return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
-    const user = data.user;
-    logStep("User authenticated", { userId: user.id });
-
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", { 
       apiVersion: "2025-08-27.basil" 
     });
 
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
     let customerId;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
@@ -112,7 +126,7 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || "https://lovable.dev";
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
+      customer_email: customerId ? undefined : userEmail,
       payment_method_types: ['card'],
       line_items: [
         {
