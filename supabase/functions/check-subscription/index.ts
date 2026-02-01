@@ -12,10 +12,10 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-// Stripe product IDs mapped to plans
+// Stripe product IDs mapped to plans (TEST MODE)
 const PRODUCT_TO_PLAN: Record<string, "pro" | "annual"> = {
-  "prod_Tsj2Aq3BZUEJgJ": "pro",    // Pro Mensal
-  "prod_Tsj3ztT0JOraZ3": "annual", // Pro Anual
+  "prod_TtsBRwE1axiTgK": "pro",    // Pro Mensal (test)
+  "prod_TtsC8IpZdr3DLZ": "annual", // Pro Anual (test)
 };
 
 // Generic error messages for clients (no internal details exposed)
