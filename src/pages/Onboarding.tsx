@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { CalendarDays, ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/fbq";
 import { format, startOfWeek } from "date-fns";
 import { QuestionWakeTime } from "@/components/onboarding/QuestionWakeTime";
 import { QuestionSleepTime } from "@/components/onboarding/QuestionSleepTime";
@@ -242,6 +243,7 @@ export default function Onboarding() {
         }
 
         toast.success("Rotina gerada com sucesso!");
+        trackEvent("CompleteRegistration", { content_name: "Onboarding" });
         navigate("/rotina");
       }
     } catch (error) {

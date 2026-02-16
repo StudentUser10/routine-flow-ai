@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Check, CalendarDays, Loader2, Crown, Sparkles, ArrowLeft } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'sonner';
+import { trackEvent } from '@/lib/fbq';
 
 const plans = [
   {
@@ -68,6 +69,8 @@ export default function Planos() {
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login');
+    } else if (user) {
+      trackEvent("ViewContent", { content_name: "Pricing Page" });
     }
   }, [user, authLoading, navigate]);
 
@@ -75,6 +78,7 @@ export default function Planos() {
     const payment = searchParams.get('payment');
     if (payment === 'success') {
       toast.success('Pagamento confirmado com sucesso!');
+      trackEvent("Purchase", { content_name: "Pro Plan" });
       checkSubscription();
     } else if (payment === 'cancelled') {
       toast.info('Pagamento cancelado.');
@@ -86,6 +90,7 @@ export default function Planos() {
       toast.info('Você já está no plano Free');
       return;
     }
+    trackEvent("InitiateCheckout", { content_name: priceId === STRIPE_PRICES.pro_annual ? "Pro Annual" : "Pro Monthly" });
     await openCheckout(priceId);
   };
 

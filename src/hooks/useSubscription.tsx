@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, ReactNode, useCallback 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { trackEvent } from '@/lib/fbq';
 
 export type SubscriptionPlan = 'free' | 'pro' | 'annual';
 
