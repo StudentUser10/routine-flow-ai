@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/fbq";
 
 const benefits = [
   "Rotina semanal personalizada em minutos",
@@ -57,6 +58,7 @@ export default function Cadastro() {
     }
     
     toast.success("Conta criada com sucesso!");
+    trackEvent("Lead", { content_name: "Signup" });
     navigate("/onboarding");
   };
 
