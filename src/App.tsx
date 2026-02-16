@@ -21,27 +21,12 @@ const queryClient = new QueryClient();
 
 const MetaPixelInit = () => {
   useEffect(() => {
-    // Ensure Meta Pixel is initialized and PageView fires
-    const initPixel = () => {
-      const w = window as any;
-      if (!w.fbq) {
-        const n: any = (w.fbq = function (...args: any[]) {
-          n.callMethod ? n.callMethod.apply(n, args) : n.queue.push(args);
-        });
-        w._fbq = n;
-        n.push = n;
-        n.loaded = true;
-        n.version = "2.0";
-        n.queue = [];
-        const script = document.createElement("script");
-        script.async = true;
-        script.src = "https://connect.facebook.net/en_US/fbevents.js";
-        document.head.appendChild(script);
-        w.fbq("init", "802219058824300");
-      }
+    const w = window as any;
+    // Re-fire PageView via React as a safety net
+    // The inline script in index.html handles initial load
+    if (w.fbq) {
       w.fbq("track", "PageView");
-    };
-    initPixel();
+    }
   }, []);
   return null;
 };
