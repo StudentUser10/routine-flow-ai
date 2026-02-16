@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,8 +19,36 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const MetaPixelInit = () => {
+  useEffect(() => {
+    // Ensure Meta Pixel is initialized and PageView fires
+    const initPixel = () => {
+      const w = window as any;
+      if (!w.fbq) {
+        const n: any = (w.fbq = function (...args: any[]) {
+          n.callMethod ? n.callMethod.apply(n, args) : n.queue.push(args);
+        });
+        w._fbq = n;
+        n.push = n;
+        n.loaded = true;
+        n.version = "2.0";
+        n.queue = [];
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = "https://connect.facebook.net/en_US/fbevents.js";
+        document.head.appendChild(script);
+        w.fbq("init", "802219058824300");
+      }
+      w.fbq("track", "PageView");
+    };
+    initPixel();
+  }, []);
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <MetaPixelInit />
     <TooltipProvider>
       <ThemeProvider>
         <AuthProvider>
