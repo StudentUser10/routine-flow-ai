@@ -143,18 +143,9 @@ serve(async (req: Request) => {
       }
 
       const generationsThisMonth = count || 0;
-      console.log("[GENERATE-ROUTINE] Generations this month:", generationsThisMonth);
 
-      // Check if this week was already generated (allow re-generation for same week)
-      const { data: existingGeneration } = await supabase
-        .from("routine_generations")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("week_start", weekStartStr)
-        .maybeSingle();
-
-      // If limit reached and this is a NEW week (not re-generating same week)
-      if (generationsThisMonth >= FREE_PLAN_MONTHLY_LIMIT && !existingGeneration) {
+      // If limit reached
+      if (generationsThisMonth >= FREE_PLAN_MONTHLY_LIMIT) {
         console.log("[GENERATE-ROUTINE] FREE plan limit reached:", generationsThisMonth, ">=", FREE_PLAN_MONTHLY_LIMIT);
         return new Response(JSON.stringify({
           error: CLIENT_ERRORS.GENERATION_LIMIT_REACHED,

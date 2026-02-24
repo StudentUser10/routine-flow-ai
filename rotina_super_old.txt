@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
+import { useGamification } from "@/hooks/useGamification";
 import { useGenerationLimit } from "@/hooks/useGenerationLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import { toast } from "sonner";
 import { RoutineWeekView } from "@/components/routine/RoutineWeekView";
 import { MobileRoutineView } from "@/components/routine/mobile/MobileRoutineView";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AdjustmentsRemaining } from "@/components/gamification/AdjustmentsRemaining";
 import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -38,6 +38,7 @@ export interface Routine {
 export default function Rotina() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { executeRoutineAdjustment, checkCanAdjust } = useRoutineAdjustment();
+  const { initializeDayChecklist } = useGamification();
   const { used, limit, canGenerate, plan, refetch: refetchGeneration, FREE_PLAN_MONTHLY_LIMIT } = useGenerationLimit();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -137,83 +138,62 @@ export default function Rotina() {
     }
   };
 
-  const handleBlockMove = async (blockId: string, toDayOfWeek: number) => {
-    // Optimistic update
-    setBlocks(currentBlocks =>
-      currentBlocks.map(block =>
-        block.id === blockId
-          ? { ...block, day_of_week: toDayOfWeek }
-          : block
-      )
-    );
-
-    try {
-      const { error } = await supabase
-        .from('routine_blocks')
-        .update({ day_of_week: toDayOfWeek })
-        .eq('id', blockId);
-
-      if (error) {
-        throw error;
-      }
-      toast.success("Bloco movido com sucesso!");
-    } catch (error) {
-      console.error("Error moving block:", error);
-      toast.error("Erro ao mover o bloco, revertendo...");
-      // Revert on error
-      fetchRoutine();
-    }
-  };
-
   const handleRegenerate = async () => {
     // REGRA: Se plano Free e limite atingido, redirecionar para planos
     if (plan === 'free' && !canGenerate) {
-      toast.error("Você atingiu o limite de gerações gratuitas deste mês.");
+      toast.error("Voc├¬ atingiu o limite de gera├º├Áes gratuitas deste m├¬s.");
       navigate("/planos");
       return;
     }
-
+    
     setRegenerating(true);
+    
+    // REGRA ABSOLUTA: Sempre enviar week_start expl├¡cito para o backend
+    const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
+    
+    // CAMADA ├ÜNICA DE AJUSTE - REGRA ABSOLUTA
+    const result = await executeRoutineAdjustment(
+      'regenerate',
+      async () => {
+        const { data: session } = await supabase.auth.getSession();
+        
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.session?.access_token}`,
+            },
+            body: JSON.stringify({
+              week_start: weekStartStr,
+            }),
+          }
+        );
 
-    try {
-      // REGRA ABSOLUTA: Sempre enviar week_start explícito para o backend
-      const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
+        const data = await response.json();
 
-      const { data: session } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.session?.access_token}`,
-          },
-          body: JSON.stringify({
-            week_start: weekStartStr,
-          }),
+        if (!response.ok) {
+          // REGRA: Verificar se ├® erro de limite de gera├º├úo
+          if (data.upgrade_required) {
+            navigate("/planos");
+          }
+          throw new Error(data.error || "Erro ao regenerar rotina");
         }
-      );
 
-      const data = await response.json();
+        return data;
+      },
+      routine?.id,
+      'Regenera├º├úo de rotina'
+    );
 
-      if (!response.ok) {
-        // REGRA: Verificar se é erro de limite de geração
-        if (data.upgrade_required) {
-          navigate("/planos");
-        }
-        throw new Error(data.error || "Erro ao regenerar rotina");
-      }
+    setRegenerating(false);
 
+    if (result.success) {
       toast.success("Rotina regenerada com sucesso!");
       await fetchRoutine();
       await checkAdjustmentStatus();
       await refetchGeneration();
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.message || "Erro ao regenerar rotina");
-    } finally {
-      setRegenerating(false);
     }
   };
 
@@ -224,13 +204,13 @@ export default function Rotina() {
 
   const handlePreviousWeek = () => {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
-    // REGRA: Mudou de semana → começa do início (domingo = 0)
+    // REGRA: Mudou de semana ÔåÆ come├ºa do in├¡cio (domingo = 0)
     setSelectedDay(0);
   };
 
   const handleNextWeek = () => {
     setCurrentWeekStart((prev) => addWeeks(prev, 1));
-    // REGRA: Mudou de semana → começa do início (domingo = 0)
+    // REGRA: Mudou de semana ÔåÆ come├ºa do in├¡cio (domingo = 0)
     setSelectedDay(0);
   };
 
@@ -245,8 +225,8 @@ export default function Rotina() {
   if (!user) return null;
 
   const weekLabel = format(currentWeekStart, "'Semana de' dd 'de' MMMM", { locale: ptBR });
-
-  // REGRA: Badge de limite de geração para plano Free
+  
+  // REGRA: Badge de limite de gera├º├úo para plano Free
   const showGenerationBadge = plan === 'free';
   const generationLimitReached = plan === 'free' && !canGenerate;
 
@@ -263,15 +243,16 @@ export default function Rotina() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Badge de limite de geração */}
+            {/* Badge de limite de gera├º├úo */}
             {showGenerationBadge && (
-              <div
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${generationLimitReached
-                  ? 'bg-destructive/10 text-destructive'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                  }`}
+              <div 
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
+                  generationLimitReached 
+                    ? 'bg-destructive/10 text-destructive' 
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
                 onClick={() => navigate("/planos")}
-                title="Gerações de rotina este mês"
+                title="Gera├º├Áes de rotina este m├¬s"
               >
                 {generationLimitReached ? (
                   <Lock className="w-3 h-3" />
@@ -300,9 +281,9 @@ export default function Rotina() {
           <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handlePreviousWeek}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
-
+          
           <h2 className="font-display font-semibold capitalize text-sm sm:text-base">{weekLabel}</h2>
-
+          
           <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleNextWeek}>
             <ChevronRight className="w-5 h-5" />
           </Button>
@@ -314,14 +295,14 @@ export default function Rotina() {
         {!routine ? (
           <div className="text-center py-8 sm:py-12 space-y-4">
             <p className="text-muted-foreground">
-              Você ainda não tem uma rotina para esta semana.
+              Voc├¬ ainda n├úo tem uma rotina para esta semana.
             </p>
-
-            {/* REGRA: Botão com estado de limite */}
+            
+            {/* REGRA: Bot├úo com estado de limite */}
             {generationLimitReached ? (
               <>
-                <Button
-                  variant="hero"
+                <Button 
+                  variant="hero" 
                   onClick={() => navigate("/planos")}
                   className="h-12 px-6"
                 >
@@ -329,18 +310,18 @@ export default function Rotina() {
                   Ver planos
                 </Button>
                 <p className="text-sm text-destructive">
-                  🔒 Limite gratuito atingido ({used}/{FREE_PLAN_MONTHLY_LIMIT})
+                  ­ƒöÆ Limite gratuito atingido ({used}/{FREE_PLAN_MONTHLY_LIMIT})
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Gerações ilimitadas no plano Pro
+                  Gera├º├Áes ilimitadas no plano Pro
                 </p>
               </>
             ) : (
               <>
-                <Button
-                  variant="hero"
-                  onClick={handleRegenerate}
-                  disabled={regenerating}
+                <Button 
+                  variant="hero" 
+                  onClick={handleRegenerate} 
+                  disabled={regenerating || !canAdjust}
                   className="h-12 px-6"
                 >
                   {regenerating ? (
@@ -355,6 +336,11 @@ export default function Rotina() {
                     </>
                   )}
                 </Button>
+                {!canAdjust && (
+                  <p className="text-sm text-destructive">
+                    Limite de ajustes atingido. Fa├ºa upgrade para Pro.
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -365,22 +351,17 @@ export default function Rotina() {
               <div className="space-y-4">
                 {/* Regenerate button for mobile with limit state */}
                 <div className="flex items-center justify-end gap-2">
-                  <div className="flex gap-2 items-center flex-wrap">
-                    {showGenerationBadge && (
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {generationLimitReached ? 'Gerações: Limite' : `Gerações: ${used}/${FREE_PLAN_MONTHLY_LIMIT}`}
-                      </span>
-                    )}
-                    <div className="scale-90 origin-right">
-                      <AdjustmentsRemaining compact />
-                    </div>
-                  </div>
+                  {showGenerationBadge && (
+                    <span className="text-xs text-muted-foreground">
+                      {generationLimitReached ? 'Limite atingido' : `${used}/${FREE_PLAN_MONTHLY_LIMIT}`}
+                    </span>
+                  )}
                   <Button
                     variant={generationLimitReached ? "outline" : "outline"}
                     size="sm"
                     className="h-9"
                     onClick={generationLimitReached ? () => navigate("/planos") : handleRegenerate}
-                    disabled={regenerating}
+                    disabled={regenerating || (!generationLimitReached && !canAdjust)}
                   >
                     {regenerating ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -395,7 +376,6 @@ export default function Rotina() {
                 <MobileRoutineView
                   blocks={blocks}
                   selectedDay={selectedDay}
-                  weekStart={currentWeekStart}
                   onDayChange={setSelectedDay}
                 />
               </div>
@@ -424,26 +404,25 @@ export default function Rotina() {
                   <div className="flex items-center gap-2">
                     {/* Desktop generation limit badge */}
                     {showGenerationBadge && (
-                      <div
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${generationLimitReached
-                          ? 'bg-destructive/10 text-destructive'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                          }`}
+                      <div 
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${
+                          generationLimitReached 
+                            ? 'bg-destructive/10 text-destructive' 
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
                         onClick={() => navigate("/planos")}
                       >
                         {generationLimitReached ? <Lock className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-                        <span>{generationLimitReached ? 'Limite atingido' : `${used}/${FREE_PLAN_MONTHLY_LIMIT} gerações`}</span>
+                        <span>{generationLimitReached ? 'Limite atingido' : `${used}/${FREE_PLAN_MONTHLY_LIMIT} gera├º├Áes`}</span>
                       </div>
                     )}
-
-                    <AdjustmentsRemaining compact />
-
+                    
                     <Button
                       variant="outline"
                       className="h-10 px-4"
                       onClick={generationLimitReached ? () => navigate("/planos") : handleRegenerate}
-                      disabled={regenerating}
-                      title={generationLimitReached ? "Ver planos" : "Regenerar rotina"}
+                      disabled={regenerating || (!generationLimitReached && !canAdjust)}
+                      title={generationLimitReached ? "Ver planos" : (!canAdjust ? "Limite de ajustes atingido" : "Regenerar rotina")}
                     >
                       {regenerating ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -464,7 +443,6 @@ export default function Rotina() {
                     setSelectedDay(block.day_of_week);
                     setViewMode("day");
                   }}
-                  onBlockMove={handleBlockMove}
                 />
               </div>
             )}
