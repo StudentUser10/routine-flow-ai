@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoutineAdjustment } from "@/hooks/useRoutineAdjustment";
-import { useGamification } from "@/hooks/useGamification";
 import { useGenerationLimit } from "@/hooks/useGenerationLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,6 @@ export interface Routine {
 export default function Rotina() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { executeRoutineAdjustment, checkCanAdjust } = useRoutineAdjustment();
-  const { initializeDayChecklist } = useGamification();
   const { used, limit, canGenerate, plan, refetch: refetchGeneration, FREE_PLAN_MONTHLY_LIMIT } = useGenerationLimit();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -275,8 +273,8 @@ export default function Rotina() {
             {showGenerationBadge && (
               <div
                 className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${generationLimitReached
-                    ? 'bg-destructive/10 text-destructive'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  ? 'bg-destructive/10 text-destructive'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
                   }`}
                 onClick={() => navigate("/planos")}
                 title="Gerações de rotina este mês"
@@ -429,8 +427,8 @@ export default function Rotina() {
                     {showGenerationBadge && (
                       <div
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${generationLimitReached
-                            ? 'bg-destructive/10 text-destructive'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          ? 'bg-destructive/10 text-destructive'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
                           }`}
                         onClick={() => navigate("/planos")}
                       >
