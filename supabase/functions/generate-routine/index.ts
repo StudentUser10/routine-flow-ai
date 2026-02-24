@@ -213,7 +213,7 @@ TIPOS DE BLOCOS:
 
 Retorne APENAS um JSON válido com a estrutura:
 {
-  "learned_context": "String. ÚSADO APENAS SE o imprevisto for PERMANENTE (ex: novo emprego, curso fixo). Escreva o novo contexto de horário aqui. Se for um evento de 1 dia só, ometir esse campo.",
+  "learned_context": "String. USADO APENAS SE o imprevisto for PERMANENTE (ex: novo emprego, curso fixo). Escreva o novo contexto de horário aqui. Se for um evento de 1 dia só, omitir esse campo.",
   "blocks": [
     {
       "day_of_week": 0-6 (0=domingo),
@@ -305,7 +305,11 @@ ${workInfo}
 GAMIFICAÇÃO E ADAPTAÇÃO:
 ${gamificationContext}
 ${adaptativeContext}
-${unforeseenEvent ? `\nIMPREVISTO / MUDANÇA DE PLANOS RELATADA AGORA:\nO usuário relatou: "${unforeseenEvent}".\nAdapte a rotina da semana para acomodar isso. Se for algo temporário, mude os blocos dessa semana. Se a frase implicar uma mudança de vida PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos retorne o campo "learned_context" no JSON com a regra clara que o sistema deve aprender.` : ""}
+${unforeseenEvent ? `\nIMPREVISTO / MUDANÇA DE PLANOS RELATADA AGORA:
+O usuário relatou: "${unforeseenEvent}".
+=> IMPORTANTE: Hoje é dia da semana: \${new Date(new Date().getTime() - 3 * 60 * 60 * 1000).getDay()} (0=Domingo, 1=Segunda, etc). O usuário fala "hoje" ou "amanhã" a partir deste dia.
+=> VOCÊ DEVE ALTERAR A ROTINA: Remova blocos atuais que conflitam com o imprevisto, ou libere os períodos indicados. Não mantenha tarefas no horário do imprevisto.
+=> Se a mudança for PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos, retorne o campo "learned_context" no JSON com a regra clara de horários para a IA lembrar.` : ""}
 
 Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras.`;
 
