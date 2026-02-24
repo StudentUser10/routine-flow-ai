@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { SubscriptionProvider } from "@/hooks/useSubscription";
@@ -19,21 +19,21 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const MetaPixelInit = () => {
+const PixelTracker = () => {
+  const location = useLocation();
+
   useEffect(() => {
     const w = window as any;
-    // Re-fire PageView via React as a safety net
-    // The inline script in index.html handles initial load
     if (w.fbq) {
       w.fbq("track", "PageView");
     }
-  }, []);
+  }, [location.pathname, location.search]);
+
   return null;
 };
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <MetaPixelInit />
     <TooltipProvider>
       <ThemeProvider>
         <AuthProvider>
@@ -41,6 +41,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <PixelTracker />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
