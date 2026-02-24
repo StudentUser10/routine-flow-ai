@@ -308,7 +308,7 @@ ${adaptativeContext}
 ${unforeseenEvent ? `\nIMPREVISTO / MUDANÇA DE PLANOS RELATADA AGORA:
 O usuário relatou: "${unforeseenEvent}".
 => IMPORTANTE: Hoje é dia da semana: \${new Date(new Date().getTime() - 3 * 60 * 60 * 1000).getDay()} (0=Domingo, 1=Segunda, etc). O usuário fala "hoje" ou "amanhã" a partir deste dia.
-=> VOCÊ DEVE ALTERAR A ROTINA: Remova blocos atuais que conflitam com o imprevisto, ou libere os períodos indicados. Não mantenha tarefas no horário do imprevisto.
+=> VOCÊ DEVE ALTERAR A ROTINA: CRIE novos blocos explícitos para acomodar esse imprevisto com um título coerente (use block_type "fixed" ou "personal"). Desloque, esprema ou cancele outros blocos de foco/descanso para fazer esse imprevisto caber. O imprevisto DEVE aparecer visivelmente na rotina gerada!
 => Se a mudança for PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos, retorne o campo "learned_context" no JSON com a regra clara de horários para a IA lembrar.` : ""}
 
 Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras.`;
