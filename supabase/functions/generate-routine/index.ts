@@ -196,13 +196,13 @@ serve(async (req: Request) => {
 
 REGRAS OBRIGATÓRIAS:
 1. Nunca crie rotinas genéricas - use EXATAMENTE os dados fornecidos
-2. Respeite SEMPRE os horários de acordar e dormir
+2. Respeite os horários de acordar e dormir (A MENOS QUE o pedido de mudança exija outro horário)
 3. Compromissos fixos são IMUTÁVEIS - nunca sugira alterá-los
 4. Blocos de foco não podem exceder o limite definido pelo usuário
 5. Insira pausas/descanso a cada 2-3 blocos de foco
 6. Priorize as metas e prioridades do usuário
 7. Considere o pico de energia para alocar tarefas importantes
-8. Deixe tempo livre para imprevistos
+8. NÃO crie blocos genéricos como "Buffer de imprevistos". Se houver um pedido do usuário, crie a atividade exata pedida.
 9. Se o usuário NÃO tem trabalho fixo, crie uma rotina FLEXÍVEL baseada em metas e energia
 
 TIPOS DE BLOCOS:
@@ -327,11 +327,13 @@ ${workInfo}
 GAMIFICAÇÃO E ADAPTAÇÃO:
 ${gamificationContext}
 ${adaptativeContext}
-${unforeseenEvent ? `\nIMPREVISTO / MUDANÇA DE PLANOS RELATADA AGORA:
-O usuário relatou: "${unforeseenEvent}".
+${unforeseenEvent ? `\n🔥 PEDIDO DE MUDANÇA NA ROTINA / NOVO EVENTO:
+O usuário relatou o seguinte evento/mudança: "${unforeseenEvent}".
 => IMPORTANTE: Hoje é dia da semana: ${new Date(new Date().getTime() - 3 * 60 * 60 * 1000).getDay()} (0=Domingo, 1=Segunda, etc). O usuário fala "hoje" ou "amanhã" a partir deste dia.
-=> VOCÊ DEVE ALTERAR A ROTINA: CRIE um novo bloco explícito para este imprevisto (use block_type "fixed" ou "personal"). Remova, desloque ou cancele os blocos antigos que entrarem em conflito de horário.
-=> Se a mudança for PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos, retorne o campo "learned_context" no JSON com a regra de horários para a IA lembrar.${existingBlocksContext}` : ""}
+=> VOCÊ DEVE ALTERAR A ROTINA ATUAL: Crie OBRIGATORIAMENTE um ou mais novos blocos com o título EXATO da atividade pedida (ex: "Trilha com amigos", "Ir ao Médico", etc - NUNCA chame de "Imprevisto").
+=> ALOQUE NO HORÁRIO EXATO QUE O USUÁRIO PEDIU, MESMO QUE ISSO VIOLE A REGRA DE DORMIR/ACORDAR. O pedido do usuário tem prioridade absoluta sobre todas as outras regras!
+=> Remova, cancele ou desloque os blocos antigos que entrarem em conflito de horário com este novo evento.
+=> Se a mudança for PERMANENTE (ex: "arrumei emprego", "mudei turno"), retorne o campo "learned_context" no JSON com a regra de horários para a IA lembrar.${existingBlocksContext}` : ""}
 
 Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras. ATENÇÃO: Retorne TODOS os blocos para os 7 dias, incluindo os intocados e os modificados.`;
 
