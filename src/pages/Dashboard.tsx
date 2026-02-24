@@ -12,6 +12,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StreakDisplay } from "@/components/gamification/StreakDisplay";
 import { PointsLevel } from "@/components/gamification/PointsLevel";
+import { WeeklyProgressChart } from "@/components/dashboard/WeeklyProgressChart";
+import { QuickReplan } from "@/components/dashboard/QuickReplan";
 
 interface Profile {
   id: string;
@@ -56,7 +58,7 @@ export default function Dashboard() {
 
   const fetchProfile = async () => {
     if (!user) return;
-    
+
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -144,8 +146,8 @@ export default function Dashboard() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   onClick={() => navigate("/rotina")}
                   className="gap-2"
                 >
@@ -153,9 +155,9 @@ export default function Dashboard() {
                   <CalendarDays className="w-5 h-5" />
                 </Button>
 
-                <Button 
-                  variant="outline" 
-                  size="lg" 
+                <Button
+                  variant="outline"
+                  size="lg"
                   onClick={() => {
                     if (generationPlan === 'free' && !canGenerate) {
                       toast.error('Você atingiu o limite de gerações gratuitas. Faça upgrade para continuar.');
@@ -171,10 +173,20 @@ export default function Dashboard() {
                 </Button>
               </div>
 
+              {/* Quick Replan */}
+              <div className="mt-8 text-left">
+                <QuickReplan />
+              </div>
+
               {/* Gamification widgets */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
                 <StreakDisplay />
                 <PointsLevel />
+              </div>
+
+              {/* Progress Chart */}
+              <div className="mt-4 text-left">
+                <WeeklyProgressChart />
               </div>
 
               {/* Plan info card */}
@@ -198,7 +210,7 @@ export default function Dashboard() {
 
                 {plan === 'free' && (
                   <p className="text-sm text-muted-foreground">
-                    {canGenerate 
+                    {canGenerate
                       ? "Você pode gerar ou regenerar sua rotina."
                       : "Limite de gerações atingido este mês."
                     }
@@ -206,8 +218,8 @@ export default function Dashboard() {
                 )}
 
                 {plan === 'free' && !canGenerate && (
-                  <Button 
-                    className="w-full gap-2" 
+                  <Button
+                    className="w-full gap-2"
                     onClick={() => navigate('/planos')}
                   >
                     <Crown className="w-4 h-4" />
@@ -228,12 +240,12 @@ export default function Dashboard() {
               </h1>
 
               <p className="text-lg text-muted-foreground">
-                Você ainda não tem uma rotina configurada. Responda 8 perguntas simples 
+                Você ainda não tem uma rotina configurada. Responda 8 perguntas simples
                 e nossa IA vai criar uma semana personalizada para você.
               </p>
 
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 onClick={() => navigate("/onboarding")}
                 className="mx-auto gap-2"
               >

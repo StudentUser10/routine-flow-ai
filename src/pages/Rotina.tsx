@@ -138,6 +138,34 @@ export default function Rotina() {
     }
   };
 
+  const handleBlockMove = async (blockId: string, toDayOfWeek: number) => {
+    // Optimistic update
+    setBlocks(currentBlocks =>
+      currentBlocks.map(block =>
+        block.id === blockId
+          ? { ...block, day_of_week: toDayOfWeek }
+          : block
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from('routine_blocks')
+        .update({ day_of_week: toDayOfWeek })
+        .eq('id', blockId);
+
+      if (error) {
+        throw error;
+      }
+      toast.success("Bloco movido com sucesso!");
+    } catch (error) {
+      console.error("Error moving block:", error);
+      toast.error("Erro ao mover o bloco, revertendo...");
+      // Revert on error
+      fetchRoutine();
+    }
+  };
+
   const handleRegenerate = async () => {
     // REGRA: Se plano Free e limite atingido, redirecionar para planos
     if (plan === 'free' && !canGenerate) {
@@ -145,18 +173,18 @@ export default function Rotina() {
       navigate("/planos");
       return;
     }
-    
+
     setRegenerating(true);
-    
+
     // REGRA ABSOLUTA: Sempre enviar week_start explícito para o backend
     const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
-    
+
     // CAMADA ÚNICA DE AJUSTE - REGRA ABSOLUTA
     const result = await executeRoutineAdjustment(
       'regenerate',
       async () => {
         const { data: session } = await supabase.auth.getSession();
-        
+
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
           {
@@ -225,7 +253,7 @@ export default function Rotina() {
   if (!user) return null;
 
   const weekLabel = format(currentWeekStart, "'Semana de' dd 'de' MMMM", { locale: ptBR });
-  
+
   // REGRA: Badge de limite de geração para plano Free
   const showGenerationBadge = plan === 'free';
   const generationLimitReached = plan === 'free' && !canGenerate;
@@ -245,12 +273,11 @@ export default function Rotina() {
           <div className="flex items-center gap-1 sm:gap-2">
             {/* Badge de limite de geração */}
             {showGenerationBadge && (
-              <div 
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
-                  generationLimitReached 
-                    ? 'bg-destructive/10 text-destructive' 
+              <div
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${generationLimitReached
+                    ? 'bg-destructive/10 text-destructive'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
+                  }`}
                 onClick={() => navigate("/planos")}
                 title="Gerações de rotina este mês"
               >
@@ -281,9 +308,9 @@ export default function Rotina() {
           <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handlePreviousWeek}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
-          
+
           <h2 className="font-display font-semibold capitalize text-sm sm:text-base">{weekLabel}</h2>
-          
+
           <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleNextWeek}>
             <ChevronRight className="w-5 h-5" />
           </Button>
@@ -297,12 +324,12 @@ export default function Rotina() {
             <p className="text-muted-foreground">
               Você ainda não tem uma rotina para esta semana.
             </p>
-            
+
             {/* REGRA: Botão com estado de limite */}
             {generationLimitReached ? (
               <>
-                <Button 
-                  variant="hero" 
+                <Button
+                  variant="hero"
                   onClick={() => navigate("/planos")}
                   className="h-12 px-6"
                 >
@@ -318,9 +345,9 @@ export default function Rotina() {
               </>
             ) : (
               <>
-                <Button 
-                  variant="hero" 
-                  onClick={handleRegenerate} 
+                <Button
+                  variant="hero"
+                  onClick={handleRegenerate}
                   disabled={regenerating || !canAdjust}
                   className="h-12 px-6"
                 >
@@ -400,19 +427,18 @@ export default function Rotina() {
                   <div className="flex items-center gap-2">
                     {/* Desktop generation limit badge */}
                     {showGenerationBadge && (
-                      <div 
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${
-                          generationLimitReached 
-                            ? 'bg-destructive/10 text-destructive' 
+                      <div
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${generationLimitReached
+                            ? 'bg-destructive/10 text-destructive'
                             : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                        }`}
+                          }`}
                         onClick={() => navigate("/planos")}
                       >
                         {generationLimitReached ? <Lock className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
                         <span>{generationLimitReached ? 'Limite atingido' : `${used}/${FREE_PLAN_MONTHLY_LIMIT} gerações`}</span>
                       </div>
                     )}
-                    
+
                     <Button
                       variant="outline"
                       className="h-10 px-4"
@@ -439,6 +465,7 @@ export default function Rotina() {
                     setSelectedDay(block.day_of_week);
                     setViewMode("day");
                   }}
+                  onBlockMove={handleBlockMove}
                 />
               </div>
             )}

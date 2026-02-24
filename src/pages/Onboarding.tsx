@@ -17,6 +17,7 @@ import { QuestionGoals } from "@/components/onboarding/QuestionGoals";
 import { QuestionEnergyPeak } from "@/components/onboarding/QuestionEnergyPeak";
 import { QuestionFocusDuration } from "@/components/onboarding/QuestionFocusDuration";
 import { QuestionPriorities } from "@/components/onboarding/QuestionPriorities";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Helper function to get current week start (Sunday)
 const getCurrentWeekStart = (): string => {
@@ -55,7 +56,7 @@ export default function Onboarding() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isReOnboarding, setIsReOnboarding] = useState(false);
   const [canAdjust, setCanAdjust] = useState(true);
-  
+
   const [data, setData] = useState<OnboardingData>({
     wakeTime: "07:00",
     sleepTime: "23:00",
@@ -79,13 +80,13 @@ export default function Onboarding() {
   useEffect(() => {
     const checkReOnboarding = async () => {
       if (!user) return;
-      
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("onboarding_completed")
         .eq("user_id", user.id)
         .single();
-      
+
       if (profile?.onboarding_completed) {
         setIsReOnboarding(true);
         // Check if user can make adjustment
@@ -93,7 +94,7 @@ export default function Onboarding() {
         setCanAdjust(status?.canAdjust ?? true);
       }
     };
-    
+
     checkReOnboarding();
   }, [user, checkCanAdjust]);
 
@@ -174,12 +175,12 @@ export default function Onboarding() {
         // CAMADA ÚNICA DE AJUSTE - REGRA ABSOLUTA
         // REGRA: Sempre enviar week_start explícito
         const weekStartStr = getCurrentWeekStart();
-        
+
         const result = await executeRoutineAdjustment(
           're_onboarding',
           async () => {
             const { data: session } = await supabase.auth.getSession();
-            
+
             const response = await fetch(
               `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
               {
@@ -216,12 +217,12 @@ export default function Onboarding() {
         // First onboarding - no adjustment needed
         // REGRA: Sempre enviar week_start explícito
         const weekStartStr = getCurrentWeekStart();
-        
+
         toast.success("Respostas salvas! Gerando sua rotina...");
         setIsGenerating(true);
 
         const { data: session } = await supabase.auth.getSession();
-        
+
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-routine`,
           {
@@ -307,44 +308,54 @@ export default function Onboarding() {
         ) : (
           <div className="space-y-8">
             {/* Question content */}
-            <div className="min-h-[300px]">
-              {currentStep === 1 && (
-                <QuestionWakeTime value={data.wakeTime} onChange={(v) => updateData("wakeTime", v)} />
-              )}
-              {currentStep === 2 && (
-                <QuestionSleepTime value={data.sleepTime} onChange={(v) => updateData("sleepTime", v)} />
-              )}
-              {currentStep === 3 && (
-                <QuestionHasFixedWork
-                  hasFixedWork={data.hasFixedWork}
-                  workHours={data.workHours}
-                  workDays={data.workDays}
-                  onHasFixedWorkChange={(v) => updateData("hasFixedWork", v)}
-                  onWorkHoursChange={(v) => updateData("workHours", v)}
-                  onWorkDaysChange={(v) => updateData("workDays", v)}
-                />
-              )}
-              {currentStep === 4 && (
-                <QuestionFixedCommitments
-                  value={data.fixedCommitments}
-                  onChange={(v) => updateData("fixedCommitments", v)}
-                />
-              )}
-              {currentStep === 5 && (
-                <QuestionGoals value={data.mainGoals} onChange={(v) => updateData("mainGoals", v)} />
-              )}
-              {currentStep === 6 && (
-                <QuestionEnergyPeak value={data.energyPeak} onChange={(v) => updateData("energyPeak", v)} />
-              )}
-              {currentStep === 7 && (
-                <QuestionFocusDuration
-                  value={data.focusDuration}
-                  onChange={(v) => updateData("focusDuration", v)}
-                />
-              )}
-              {currentStep === 8 && (
-                <QuestionPriorities value={data.priorities} onChange={(v) => updateData("priorities", v)} />
-              )}
+            <div className="min-h-[300px] overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentStep}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
+                  {currentStep === 1 && (
+                    <QuestionWakeTime value={data.wakeTime} onChange={(v) => updateData("wakeTime", v)} />
+                  )}
+                  {currentStep === 2 && (
+                    <QuestionSleepTime value={data.sleepTime} onChange={(v) => updateData("sleepTime", v)} />
+                  )}
+                  {currentStep === 3 && (
+                    <QuestionHasFixedWork
+                      hasFixedWork={data.hasFixedWork}
+                      workHours={data.workHours}
+                      workDays={data.workDays}
+                      onHasFixedWorkChange={(v) => updateData("hasFixedWork", v)}
+                      onWorkHoursChange={(v) => updateData("workHours", v)}
+                      onWorkDaysChange={(v) => updateData("workDays", v)}
+                    />
+                  )}
+                  {currentStep === 4 && (
+                    <QuestionFixedCommitments
+                      value={data.fixedCommitments}
+                      onChange={(v) => updateData("fixedCommitments", v)}
+                    />
+                  )}
+                  {currentStep === 5 && (
+                    <QuestionGoals value={data.mainGoals} onChange={(v) => updateData("mainGoals", v)} />
+                  )}
+                  {currentStep === 6 && (
+                    <QuestionEnergyPeak value={data.energyPeak} onChange={(v) => updateData("energyPeak", v)} />
+                  )}
+                  {currentStep === 7 && (
+                    <QuestionFocusDuration
+                      value={data.focusDuration}
+                      onChange={(v) => updateData("focusDuration", v)}
+                    />
+                  )}
+                  {currentStep === 8 && (
+                    <QuestionPriorities value={data.priorities} onChange={(v) => updateData("priorities", v)} />
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* Navigation */}

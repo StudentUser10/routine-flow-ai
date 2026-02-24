@@ -62,7 +62,7 @@ serve(async (req) => {
     }
 
     // Parse request body to get week_start
-    let body: { week_start?: string } = {};
+    let body: { week_start?: string; unforeseen_event?: string } = {};
     try {
       body = await req.json();
     } catch {
@@ -71,7 +71,8 @@ serve(async (req) => {
 
     // REGRA ABSOLUTA: week_start é OBRIGATÓRIO
     const weekStartStr = body.week_start;
-    
+    const unforeseenEvent = body.unforeseen_event;
+
     if (!weekStartStr) {
       console.log("[GENERATE-ROUTINE] ERROR: Missing week_start in request body");
       return new Response(JSON.stringify({ error: CLIENT_ERRORS.MISSING_WEEK_START }), {
@@ -97,7 +98,7 @@ serve(async (req) => {
     // Get user from token
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+
     if (userError || !user) {
       console.error("[GENERATE-ROUTINE] User auth error:", userError?.message);
       return new Response(JSON.stringify({ error: CLIENT_ERRORS.UNAUTHORIZED }), {
@@ -111,7 +112,7 @@ serve(async (req) => {
     // ============================================
     // REGRA: VERIFICAR LIMITE DE GERAÇÃO (PLANO FREE)
     // ============================================
-    
+
     // Fetch user's plan from profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -129,7 +130,7 @@ serve(async (req) => {
     // Only check limits for free plan
     if (userPlan === 'free') {
       const firstDayOfMonth = getFirstDayOfMonth();
-      
+
       // Count generations this month
       const { count, error: countError } = await supabase
         .from("routine_generations")
@@ -155,7 +156,7 @@ serve(async (req) => {
       // If limit reached and this is a NEW week (not re-generating same week)
       if (generationsThisMonth >= FREE_PLAN_MONTHLY_LIMIT && !existingGeneration) {
         console.log("[GENERATE-ROUTINE] FREE plan limit reached:", generationsThisMonth, ">=", FREE_PLAN_MONTHLY_LIMIT);
-        return new Response(JSON.stringify({ 
+        return new Response(JSON.stringify({
           error: CLIENT_ERRORS.GENERATION_LIMIT_REACHED,
           upgrade_required: true,
           generations_used: generationsThisMonth,
@@ -212,6 +213,7 @@ TIPOS DE BLOCOS:
 
 Retorne APENAS um JSON válido com a estrutura:
 {
+  "learned_context": "String. ÚSADO APENAS SE o imprevisto for PERMANENTE (ex: novo emprego, curso fixo). Escreva o novo contexto de horário aqui. Se for um evento de 1 dia só, ometir esse campo.",
   "blocks": [
     {
       "day_of_week": 0-6 (0=domingo),
@@ -229,7 +231,7 @@ Retorne APENAS um JSON válido com a estrutura:
     // Handle users without fixed work
     const hasFixedWork = questionnaire.has_fixed_work ?? true;
     const workDays = questionnaire.work_days || [];
-    
+
     let workInfo = "";
     if (hasFixedWork && questionnaire.work_hours) {
       if (workDays.length > 0) {
@@ -246,6 +248,48 @@ Retorne APENAS um JSON válido com a estrutura:
       workInfo = `- Trabalho fixo: NÃO - Criar rotina flexível baseada em metas e energia do usuário`;
     }
 
+    // Gamification and Adaptation Data
+    const { data: gamification } = await supabase
+      .from("user_gamification")
+      .select("total_points, current_level, current_streak")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dateStr = sevenDaysAgo.toISOString().split('T')[0];
+
+    const { data: skippedDetails } = await supabase
+      .from("block_status")
+      .select(`
+        date,
+        routine_blocks (
+          title,
+          block_type,
+          start_time
+        )
+      `)
+      .eq("user_id", user.id)
+      .eq("status", "skipped")
+      .gte("date", dateStr);
+
+    let gamificationContext = "";
+    if (gamification) {
+      gamificationContext = `- Perfil de Engajamento: Nível ${gamification.current_level} (Ofensiva: ${gamification.current_streak} dias diretos). `;
+      if (gamification.current_streak >= 3) {
+        gamificationContext += "Usuário engajado e consistente. Pode manter ou elevar levemente o desafio dos blocos de foco.";
+      } else {
+        gamificationContext += "Usuário com dificuldade de manter a consistência. Crie uma rotina MAIS LEVE, flexível e com intervalos maiores para ajudar a recuperar o ritmo.";
+      }
+    }
+
+    let adaptativeContext = "";
+    if (skippedDetails && skippedDetails.length > 0) {
+      // @ts-ignore
+      const skippedList = skippedDetails.map(d => `${d.routine_blocks?.title} (${d.routine_blocks?.start_time})`).slice(0, 5).join(", ");
+      adaptativeContext = `- Adaptação Comportamental: Nos últimos 7 dias, o usuário ignorou as seguintes atividades: ${skippedList}. Como especialista, mude a estratégia para essas atividades (mude o horário, reduza o tempo ou fragmente) para facilitar a conclusão nesta nova semana. NÃO repita a mesma estrutura que falhou.`;
+    }
+
     const userPrompt = `Crie uma rotina semanal completa para este usuário:
 
 DADOS DO USUÁRIO:
@@ -257,6 +301,11 @@ ${workInfo}
 - Metas principais: ${JSON.stringify(questionnaire.main_goals)}
 - Prioridades: ${JSON.stringify(questionnaire.priorities)}
 - Compromissos fixos: ${JSON.stringify(questionnaire.fixed_commitments)}
+
+GAMIFICAÇÃO E ADAPTAÇÃO:
+${gamificationContext}
+${adaptativeContext}
+${unforeseenEvent ? `\nIMPREVISTO / MUDANÇA DE PLANOS RELATADA AGORA:\nO usuário relatou: "${unforeseenEvent}".\nAdapte a rotina da semana para acomodar isso. Se for algo temporário, mude os blocos dessa semana. Se a frase implicar uma mudança de vida PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos retorne o campo "learned_context" no JSON com a regra clara que o sistema deve aprender.` : ""}
 
 Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras.`;
 
@@ -281,7 +330,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error("[GENERATE-ROUTINE] AI Gateway error:", aiResponse.status, errorText);
-      
+
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: CLIENT_ERRORS.RATE_LIMITED }), {
           status: 429,
@@ -294,7 +343,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      
+
       return new Response(JSON.stringify({ error: CLIENT_ERRORS.INTERNAL_ERROR }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -315,7 +364,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
     console.log("[GENERATE-ROUTINE] AI Response received, parsing...");
 
     // Extract JSON from response
-    let routineData: { blocks: RoutineBlock[] };
+    let routineData: { blocks: RoutineBlock[]; learned_context?: string };
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -372,6 +421,23 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
 
     console.log("[GENERATE-ROUTINE] All blocks validated successfully");
 
+    // SAVE LEARNED CONTEXT
+    if (routineData.learned_context) {
+      console.log("[GENERATE-ROUTINE] AI learned new permanent context:", routineData.learned_context);
+
+      const currentPriorities = questionnaire.priorities || [];
+      const newPriorities = [...currentPriorities, `[APRENDIZADO IA]: ${routineData.learned_context}`];
+
+      const { error: updateQuestError } = await supabase
+        .from("questionnaire_responses")
+        .update({ priorities: newPriorities })
+        .eq("user_id", user.id);
+
+      if (updateQuestError) {
+        console.error("[GENERATE-ROUTINE] Error saving learned context to priorities:", updateQuestError.message);
+      }
+    }
+
     // REGRA: Usar EXATAMENTE o week_start recebido do frontend
     console.log("[GENERATE-ROUTINE] Using week_start from frontend:", weekStartStr);
 
@@ -388,7 +454,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
     if (existingRoutine) {
       // Update existing routine
       console.log("[GENERATE-ROUTINE] Updating existing routine:", existingRoutine.id);
-      
+
       // Delete existing blocks first
       await supabase
         .from("routine_blocks")
@@ -398,7 +464,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
       // Update routine to be active
       const { data: updatedRoutine, error: updateError } = await supabase
         .from("routines")
-        .update({ 
+        .update({
           is_active: true,
           updated_at: new Date().toISOString()
         })
@@ -418,7 +484,7 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
     } else {
       // Create new routine
       console.log("[GENERATE-ROUTINE] Creating new routine for week:", weekStartStr);
-      
+
       const { data: newRoutine, error: routineError } = await supabase
         .from("routines")
         .insert({
@@ -493,11 +559,11 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
 
     console.log("[GENERATE-ROUTINE] Routine generated successfully for week:", weekStartStr, "with", blocksToInsert.length, "blocks");
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
       routine_id: routine.id,
       week_start: weekStartStr,
-      blocks_count: blocksToInsert.length 
+      blocks_count: blocksToInsert.length
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
