@@ -290,6 +290,28 @@ Retorne APENAS um JSON válido com a estrutura:
       adaptativeContext = `- Adaptação Comportamental: Nos últimos 7 dias, o usuário ignorou as seguintes atividades: ${skippedList}. Como especialista, mude a estratégia para essas atividades (mude o horário, reduza o tempo ou fragmente) para facilitar a conclusão nesta nova semana. NÃO repita a mesma estrutura que falhou.`;
     }
 
+    // Check if routine already exists for this user and week
+    const { data: existingRoutine } = await supabase
+      .from("routines")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("week_start", weekStartStr)
+      .maybeSingle();
+
+    let existingBlocksContext = "";
+    if (existingRoutine && unforeseenEvent) {
+      const { data: oldBlocks } = await supabase
+        .from("routine_blocks")
+        .select("day_of_week, block_type, title, start_time, end_time, is_fixed, priority")
+        .eq("routine_id", existingRoutine.id)
+        .order("day_of_week")
+        .order("start_time");
+
+      if (oldBlocks && oldBlocks.length > 0) {
+        existingBlocksContext = `\nROTINA ATUAL DA SEMANA (JSON):\n${JSON.stringify(oldBlocks)}\n=> BASEIE-SE NESTA ROTINA e modifique O MÍNIMO POSSÍVEL para acomodar o imprevisto. Mantenha as tarefas existentes intocadas nos horários em que não há conflito! Modifique os blocos como se estivesse editando o JSON acima.`;
+      }
+    }
+
     const userPrompt = `Crie uma rotina semanal completa para este usuário:
 
 DADOS DO USUÁRIO:
@@ -307,11 +329,11 @@ ${gamificationContext}
 ${adaptativeContext}
 ${unforeseenEvent ? `\nIMPREVISTO / MUDANÇA DE PLANOS RELATADA AGORA:
 O usuário relatou: "${unforeseenEvent}".
-=> IMPORTANTE: Hoje é dia da semana: \${new Date(new Date().getTime() - 3 * 60 * 60 * 1000).getDay()} (0=Domingo, 1=Segunda, etc). O usuário fala "hoje" ou "amanhã" a partir deste dia.
-=> VOCÊ DEVE ALTERAR A ROTINA: CRIE novos blocos explícitos para acomodar esse imprevisto com um título coerente (use block_type "fixed" ou "personal"). Desloque, esprema ou cancele outros blocos de foco/descanso para fazer esse imprevisto caber. O imprevisto DEVE aparecer visivelmente na rotina gerada!
-=> Se a mudança for PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos, retorne o campo "learned_context" no JSON com a regra clara de horários para a IA lembrar.` : ""}
+=> IMPORTANTE: Hoje é dia da semana: ${new Date(new Date().getTime() - 3 * 60 * 60 * 1000).getDay()} (0=Domingo, 1=Segunda, etc). O usuário fala "hoje" ou "amanhã" a partir deste dia.
+=> VOCÊ DEVE ALTERAR A ROTINA: CRIE um novo bloco explícito para este imprevisto (use block_type "fixed" ou "personal"). Remova, desloque ou cancele os blocos antigos que entrarem em conflito de horário.
+=> Se a mudança for PERMANENTE (ex: "arrumei emprego", "mudei turno"), além de adaptar os blocos, retorne o campo "learned_context" no JSON com a regra de horários para a IA lembrar.${existingBlocksContext}` : ""}
 
-Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras.`;
+Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando todas as regras. ATENÇÃO: Retorne TODOS os blocos para os 7 dias, incluindo os intocados e os modificados.`;
 
     console.log("[GENERATE-ROUTINE] Calling Lovable AI...");
 
@@ -444,14 +466,6 @@ Crie blocos para TODOS os 7 dias da semana (0=domingo a 6=sábado), respeitando 
 
     // REGRA: Usar EXATAMENTE o week_start recebido do frontend
     console.log("[GENERATE-ROUTINE] Using week_start from frontend:", weekStartStr);
-
-    // Check if routine already exists for this user and week
-    const { data: existingRoutine } = await supabase
-      .from("routines")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("week_start", weekStartStr)
-      .maybeSingle();
 
     let routine;
 
