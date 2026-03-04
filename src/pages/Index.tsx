@@ -4,6 +4,8 @@ import { PainPoints } from "@/components/landing/PainPoints";
 import { Promise } from "@/components/landing/Promise";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { SocialProof } from "@/components/landing/SocialProof";
+import { Bullets } from "@/components/landing/Bullets";
+import { ValueStack } from "@/components/landing/ValueStack";
 import { LowRisk } from "@/components/landing/LowRisk";
 import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
@@ -18,6 +20,8 @@ const Index = () => {
         <Promise />
         <HowItWorks />
         <SocialProof />
+        <Bullets />
+        <ValueStack />
         <LowRisk />
         <CTA />
       </main>
