@@ -57,7 +57,8 @@ serve(async (req) => {
 
     const incomingToken =
       req.headers.get("x-kirvano-token") ??
-      req.headers.get("authorization")?.replace("Bearer ", "");
+      req.headers.get("authorization")?.replace("Bearer ", "") ??
+      (body as any).token;
 
     if (!incomingToken || incomingToken !== kirvanoToken) {
       logStep("ERROR: Invalid or missing token");
