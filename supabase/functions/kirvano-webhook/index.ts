@@ -29,6 +29,22 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
+    // --- Developer Debug: log all incoming headers & body ---
+    console.log('[KIRVANO-WEBHOOK] Headers:', JSON.stringify(Object.fromEntries(req.headers)));
+    // We must read the body as text first to log it, then parse it manually
+    const rawBody = await req.text();
+    console.log('[KIRVANO-WEBHOOK] Body:', rawBody);
+
+    // Parse it back for the rest of the function to use
+    let body = {};
+    if (rawBody) {
+      try {
+        body = JSON.parse(rawBody);
+      } catch (e) {
+        logStep("WARNING: Failed to parse body as JSON");
+      }
+    }
+
     // --- Token validation ---------------------------------------------------
     const kirvanoToken = Deno.env.get("KIRVANO_TOKEN");
     if (!kirvanoToken) {
@@ -53,7 +69,7 @@ serve(async (req) => {
     logStep("Token validated");
 
     // --- Parse body ---------------------------------------------------------
-    const body = await req.json();
+    // body is already parsed from rawBody above
     const event = body.event as string | undefined;
     const customerEmail = body.customer?.email as string | undefined;
 
