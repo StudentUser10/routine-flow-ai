@@ -7,19 +7,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-kirvano-token",
 };
 
-const logStep = (step: string, details?: any) => {
+const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[KIRVANO-WEBHOOK] ${step}${detailsStr}`);
 };
-
-/**
- * Map Kirvano events to internal plan updates.
- *
- * COMPRA_APROVADA   → activate the plan (pro or annual based on product)
- * COMPRA_RECUSADA   → no plan change (purchase failed)
- * REEMBOLSO         → downgrade to free
- * ASSINATURA_CANCELADA → downgrade to free
- */
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -29,30 +20,45 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    // --- Developer Debug: log all incoming headers & body ---
-    console.log('[KIRVANO-WEBHOOK] Headers:', JSON.stringify(Object.fromEntries(req.headers)));
-    // We must read the body as text first to log it, then parse it manually
     const rawBody = await req.text();
-    console.log('[KIRVANO-WEBHOOK] Body:', rawBody);
 
-    // Parse it back for the rest of the function to use
-    let body = {};
+    let body: Record<string, unknown> = {};
     if (rawBody) {
       try {
         body = JSON.parse(rawBody);
-      } catch (e) {
+      } catch (_e) {
         logStep("WARNING: Failed to parse body as JSON");
       }
     }
 
     // --- Token validation ---------------------------------------------------
-    // TEMP: token validation disabled for debugging
-    logStep("Token check skipped for debug");
+    const kirvanoToken = Deno.env.get("KIRVANO_TOKEN");
+    if (!kirvanoToken) {
+      logStep("ERROR: KIRVANO_TOKEN not configured");
+      return new Response(JSON.stringify({ error: "Server misconfigured" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
+
+    const incomingToken =
+      req.headers.get("x-kirvano-token") ??
+      req.headers.get("authorization")?.replace("Bearer ", "") ??
+      (body.token as string | undefined);
+
+    if (!incomingToken || incomingToken !== kirvanoToken) {
+      logStep("ERROR: Invalid or missing token");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    logStep("Token validated");
 
     // --- Parse body ---------------------------------------------------------
-    // body is already parsed from rawBody above
     const event = body.event as string | undefined;
-    const customerEmail = body.customer?.email as string | undefined;
+    const customer = body.customer as Record<string, unknown> | undefined;
+    const customerEmail = customer?.email as string | undefined;
 
     if (!event || !customerEmail) {
       logStep("ERROR: Missing event or customer.email", { event, customerEmail });
@@ -77,10 +83,10 @@ serve(async (req) => {
     // --- Handle events ------------------------------------------------------
     switch (event) {
       case "COMPRA_APROVADA": {
-        // Determine plan from product info if available, default to "pro"
-        const productName = (body.product?.name ?? "").toLowerCase();
+        const product = body.product as Record<string, unknown> | undefined;
+        const productName = ((product?.name as string) ?? "").toLowerCase();
         const plan = productName.includes("anual") ? "annual" : "pro";
-        const adjustmentsLimit = 999999; // Unlimited for paid users
+        const adjustmentsLimit = 999999;
 
         const { error } = await supabaseClient
           .from("profiles")
