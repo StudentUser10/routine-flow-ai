@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-kirvano-token",
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
@@ -21,7 +21,6 @@ serve(async (req) => {
     logStep("Function started");
 
     const rawBody = await req.text();
-
     let body: Record<string, unknown> = {};
     if (rawBody) {
       try {
@@ -30,19 +29,6 @@ serve(async (req) => {
         logStep("WARNING: Failed to parse body as JSON");
       }
     }
-
-    // --- DEBUG: Log all headers and body to identify token format ----------
-    const allHeaders: Record<string, string> = {};
-    req.headers.forEach((value, key) => {
-      allHeaders[key] = key.toLowerCase().includes("token") || key.toLowerCase().includes("auth")
-        ? value
-        : value.substring(0, 50);
-    });
-    logStep("Headers received", allHeaders);
-    logStep("Body received", body as Record<string, unknown>);
-
-    // --- Token validation (temporarily relaxed for debugging) ---------------
-    logStep("Token check skipped for debug - review headers above");
 
     // --- Parse body ---------------------------------------------------------
     const event = body.event as string | undefined;
@@ -70,11 +56,13 @@ serve(async (req) => {
     );
 
     // --- Handle events ------------------------------------------------------
+    // Kirvano sends English event names:
+    // SALE_APPROVED, SALE_REFUSED, REFUND, SUBSCRIPTION_CANCELED, CHARGEBACK
     switch (event) {
-      case "COMPRA_APROVADA": {
-        const product = body.product as Record<string, unknown> | undefined;
-        const productName = ((product?.name as string) ?? "").toLowerCase();
-        const plan = productName.includes("anual") ? "annual" : "pro";
+      case "SALE_APPROVED": {
+        const plan_ = body.plan as Record<string, unknown> | undefined;
+        const chargeFrequency = (plan_?.charge_frequency as string) ?? "";
+        const plan = chargeFrequency === "ANNUALLY" ? "annual" : "pro";
         const adjustmentsLimit = 999999;
 
         const { error } = await supabaseClient
@@ -83,7 +71,7 @@ serve(async (req) => {
           .eq("email", customerEmail);
 
         if (error) {
-          logStep("ERROR updating profile for COMPRA_APROVADA", { error: error.message });
+          logStep("ERROR updating profile for SALE_APPROVED", { error: error.message });
           return new Response(JSON.stringify({ error: "Database error" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 500,
@@ -93,13 +81,14 @@ serve(async (req) => {
         break;
       }
 
-      case "COMPRA_RECUSADA": {
+      case "SALE_REFUSED": {
         logStep("Purchase declined, no action taken", { customerEmail });
         break;
       }
 
-      case "REEMBOLSO":
-      case "ASSINATURA_CANCELADA": {
+      case "REFUND":
+      case "SUBSCRIPTION_CANCELED":
+      case "CHARGEBACK": {
         const { error } = await supabaseClient
           .from("profiles")
           .update({ plan: "free", adjustments_limit: 1, adjustments_used: 0 })
