@@ -43,8 +43,7 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
           >
-            A ciência chama de <strong className="text-foreground">"fadiga de decisão"</strong>. 
-            No Brasil, chamam de preguiça. A verdade? Cada vez que você pensa{" "}
+            Cada vez que você pensa{" "}
             <em>"o que eu faço agora?"</em>, seu cérebro gasta a mesma energia que usaria para resolver um problema complexo.
           </motion.p>
 
