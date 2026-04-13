@@ -30,7 +30,7 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold leading-[1.1] tracking-tight"
           >
-            Você não é preguiçoso.{" "}
+           {" "}
             <br className="hidden sm:block" />
             <span className="text-primary">Seu cérebro está sendo roubado</span>{" "}
             todas as manhãs.
@@ -43,8 +43,8 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
           >
-            Cada vez que você pensa{" "}
-            <em>"o que eu faço agora?"</em>, seu cérebro gasta a mesma energia que usaria para resolver um problema complexo.
+            Toda vez que você pensa{" "}
+            <em>"o que eu devo fazer agora?"</em>, seu cérebro gasta a mesma energia que usaria para resolver um problema diferente.
           </motion.p>
 
           <motion.p
@@ -53,7 +53,7 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="text-base sm:text-lg text-foreground font-medium"
           >
-            O RotinAI elimina esse custo. Responda 8 perguntas. A IA organiza sua semana inteira.
+            O RotinAI acaba com esse problema com apenas 8 perguntas. A IA organiza sua semana inteira.
           </motion.p>
 
           {/* CTA */}
